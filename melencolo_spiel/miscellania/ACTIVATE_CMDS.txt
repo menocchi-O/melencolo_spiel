@@ -1,0 +1,3 @@
+Terminal 1 --> backend --> uvicorn filename:app --reload
+Terminal 2 --> frontend --> python -m http.server portnumber
+Browser --> http http://127.0.0.1:portnumber/frontend.html

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Word Alignment Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 20px;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Alignment Test</h1>
+
+  <textarea id="inputText" placeholder="Paste German text here..."></textarea>
+  <br />
+  <button id="runBtn">Align</button>
+
+  <pre id="output"></pre>
+
+  <script>
+    const btn = document.getElementById("runBtn");
+    const output = document.getElementById("output");
+
+    btn.onclick = async () => {
+      const text = document.getElementById("inputText").value;
+
+      output.textContent = "⏳ Loading...";
+
+      try {
+        const res = await fetch("http://127.0.0.1:8000/align", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+
+        const data = await res.json();
+        output.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        output.textContent = "❌ Error: " + err;
+      }
+    };
+  </script>
+
+</body>
+</html>
