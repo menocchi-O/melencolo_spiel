@@ -22,41 +22,135 @@
       padding: 10px;
       margin-top: 20px;
     }
+      table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 20px;
+      }
+
+      th, td {
+          border: 1px solid #ddd;
+          padding: 8px;
+      }
+
+      th {
+          background: #f4f4f4;
+      }
+
+      tr:nth-child(even) {
+          background: #fafafa;
+      }
+
+      td:first-child {
+          text-align: center;
+          width: 70px;
+      }
+    
   </style>
 </head>
 <body>
 
-  <h1>Alignment Test</h1>
+    <h1>Alignment Test</h1>
 
-  <textarea id="inputText" placeholder="Paste German text here..."></textarea>
-  <br />
-  <button id="runBtn">Align</button>
+    <textarea id="inputText" placeholder="Paste German text here..."></textarea>
+    <br />
+    <button id="runBtn">Align</button>
 
-  <pre id="output"></pre>
+    <table id="resultTable" style="display:none;">
+        <thead>
+            <tr>
+                <th>Keep</th>
+                <th>German</th>
+                <th>English</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
 
-  <script>
-    const btn = document.getElementById("runBtn");
-    const output = document.getElementById("output");
+    <button id="saveBtn" style="display:none;">
+        Save Selected
+    </button>
 
-    btn.onclick = async () => {
-      const text = document.getElementById("inputText").value;
+    <script>
+        const btn = document.getElementById("runBtn");
+        const table = document.getElementById("resultTable");
+        const tbody = table.querySelector("tbody");
+        const saveBtn = document.getElementById("saveBtn");
 
-      output.textContent = "⏳ Loading...";
+        btn.onclick = async () => {
+            const text = document.getElementById("inputText").value;
 
-      try {
-        const res = await fetch("http://127.0.0.1:8000/align", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text })
-        });
+            try {
+                const res = await fetch("http://127.0.0.1:8000/align", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text })
+                });
 
-        const data = await res.json();
-        output.textContent = JSON.stringify(data, null, 2);
-      } catch (err) {
-        output.textContent = "❌ Error: " + err;
-      }
-    };
-  </script>
+                const data = await res.json();
+
+                tbody.innerHTML = "";
+
+                data.pairs.forEach((pair, index) => {
+                    const row = document.createElement("tr");
+
+                    row.innerHTML = `
+                        <td>
+                            <input
+                            type="checkbox"
+                            unchecked
+                            data-index="${index}">
+                        </td>
+                        <td>${pair.de}</td>
+                        <td>${pair.en}</td>
+                    `;
+
+                    tbody.appendChild(row);
+                });
+
+                table.style.display = "table";
+                saveBtn.style.display = "inline-block";
+                
+            } catch (err) {
+                output.textContent = "❌ Error: " + err;
+            }
+        };
+
+        saveBtn.onclick = async () => {
+
+            const selected = [];
+
+            tbody.querySelectorAll("tr").forEach((row, i) => {
+
+                const checked = row.querySelector("input").checked;
+
+                if (checked) {
+
+                    selected.push({
+                        de: row.cells[1].textContent,
+                        en: row.cells[2].textContent
+                    });
+
+                }
+
+            });
+
+            console.log(selected);
+
+            // POST to FastAPI if desired
+            /*
+            await fetch("/save", {
+                method: "POST",
+                headers: {
+                    "Content-Type":"application/json"
+                },
+                body: JSON.stringify({
+                    pairs: selected
+                })
+            });
+            */
+        };
+    </script>
 
 </body>
 </html>
