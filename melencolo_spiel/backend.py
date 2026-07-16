@@ -1,8 +1,10 @@
-﻿from fastapi import FastAPI
+﻿from tkinter.filedialog import Directory
+from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 import torch
 import itertools
+import random
 from transformers import AutoModel, AutoTokenizer, pipeline
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
@@ -10,11 +12,40 @@ from fastapi.staticfiles import StaticFiles
 from fastapi import Request
 from fastapi.responses import FileResponse
 
-app = FastAPI(title="Word Alignment API")
+selected_pairs = []
 
+app = FastAPI(title="Word Alignment API")
+app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 @app.get("/")
 def index():
-    return FileResponse("static/frontend.html")
+       return FileResponse("static/frontend.html")
+
+def build_game(selected_pairs):
+    english_words = [p["en"] for p in selected_pairs]
+
+    game = []
+
+    for pair in selected_pairs:
+
+        correct = pair["en"]
+
+        # All possible distractors except the correct one
+        distractors = [w for w in english_words if w != correct]
+
+        # Pick two random distractors
+        wrong = random.sample(distractors, k=min(2, len(distractors)))
+
+        # Build the options and shuffle them
+        options = wrong + [correct]
+        random.shuffle(options)
+
+        game.append({
+            "de": pair["de"],
+            "options": options,
+            "correct": correct
+        })
+
+    return game
 
 # 🔥 CORS — MUST be here
 app.add_middleware(
@@ -56,6 +87,7 @@ class WordPair(BaseModel):
 
 class AlignResponse(BaseModel):
     pairs: List[WordPair]
+
 
 def align_sentence(src: str):
     tgt = translator(src)[0]["translation_text"]
@@ -106,7 +138,22 @@ def align_sentence(src: str):
         {"de": src_words[i], "en": tgt_words[j]}
         for i, j in sorted(aligned)
     ]
+
+### DASHBOARD ###
+
+
+
 @app.post("/align", response_model=AlignResponse)
 def align(req: AlignRequest):
     pairs = align_sentence(req.text)
     return {"pairs": pairs}
+
+@app.post("/save_pairs")
+async def save_pairs(data: dict):
+    global selected_pairs
+    selected_pairs = data["pairs"]
+    return {"status": "ok"}
+
+@app.get("/game_words")
+async def game_words():
+    return build_game(selected_pairs)

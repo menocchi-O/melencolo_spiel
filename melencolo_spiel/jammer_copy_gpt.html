@@ -38,7 +38,7 @@ const config = {
 
 new Phaser.Game(config);
 
-        function preload() {
+    function preload() {
             // --- Create procedural textures ---
             const jarGraphics = this.make.graphics({ x: 0, y: 0, add: false });
             jarGraphics.fillStyle(0x795548, 1);
@@ -91,11 +91,7 @@ new Phaser.Game(config);
             this.platform = this.physics.add.staticImage(400, 560, 'platform');
             this.lift = this.physics.add.staticImage(580,520,'lift')
             this.jars = this.physics.add.group();
-            this.words = [
-                            { de: 'Apfel', en: ['Apple', 'Chair', 'Banana'], correct: 'Apple' },
-                            { de: 'Hund', en: ['Dog', 'Cat', 'Mouse'], correct: 'Dog' },
-                            { de: 'Haus', en: ['Tree', 'House', 'Car'], correct: 'House' }
-            ];
+            this.words = await loadWords();
 
             
             this.basketBottom = this.add.image(580, 500, "basketBottom");
@@ -124,7 +120,7 @@ new Phaser.Game(config);
 
         }
 
-        function spawnJar(scene) {
+    function spawnJar(scene) {
            const word = Phaser.Utils.Array.GetRandom(scene.words);
            const startX = 180;
            const startY = 500;
@@ -148,7 +144,7 @@ new Phaser.Game(config);
            jar.on('pointerdown', () => showParachute(scene, jar));
         }
 
-        function showParachute(scene, jar) {
+    function showParachute(scene, jar) {
            if (jar.parachuteOpen) return;
            jar.parachuteOpen = true;
            // Pause only THIS ONE jar
@@ -170,7 +166,7 @@ new Phaser.Game(config);
                                         });
         }
 
-        function handleChoice(scene, jar, opt) {
+    function handleChoice(scene, jar, opt) {
             correct = false;
             jar.optionTexts.forEach(t => {
                 t.disableInteractive();
@@ -262,7 +258,12 @@ new Phaser.Game(config);
             }
             });
 
-        }
+    }
+
+    async function loadWords() {
+        const res = await fetch("/game_words");
+        return await res.json();
+    }
 </script>
 
 </body>

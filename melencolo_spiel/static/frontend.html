@@ -138,8 +138,8 @@
             console.log(selected);
 
             // POST to FastAPI if desired
-            /*
-            await fetch("/save", {
+            
+            const res = await fetch("/save_pairs", {
                 method: "POST",
                 headers: {
                     "Content-Type":"application/json"
@@ -148,7 +148,11 @@
                     pairs: selected
                 })
             });
-            */
+
+            const data = await res.json()
+            if (data.status == "ok")
+                window.location.href = "/static/jammer.html";
+            
         };
     </script>
 
