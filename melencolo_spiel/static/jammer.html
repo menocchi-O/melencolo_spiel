@@ -92,6 +92,7 @@ new Phaser.Game(config);
             this.lift = this.physics.add.staticImage(580,520,'lift')
             this.jars = this.physics.add.group();
             this.words = await loadWords();
+            console.log(this.words)
 
             
             this.basketBottom = this.add.image(580, 500, "basketBottom");
@@ -263,6 +264,7 @@ new Phaser.Game(config);
     async function loadWords() {
 
         const res = await fetch("/game_words");
+        //console.log("Pairs: "+res.json());
         return await res.json();
 
     }

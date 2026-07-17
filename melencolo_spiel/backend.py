@@ -41,7 +41,7 @@ def build_game(selected_pairs):
 
         game.append({
             "de": pair["de"],
-            "options": options,
+            "en": options,
             "correct": correct
         })
 
