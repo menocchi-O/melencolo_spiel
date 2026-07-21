@@ -1,5 +1,4 @@
-﻿from tkinter.filedialog import Directory
-from fastapi import FastAPI
+﻿from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 import torch
@@ -7,14 +6,25 @@ import itertools
 import random
 from transformers import AutoModel, AutoTokenizer, pipeline
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi import Request
 from fastapi.responses import FileResponse
 
 selected_pairs = []
+tokenizer = None
+model = None
+device = None
 
+MODEL_NAME = "aneuraz/awesome-align-with-co"
 app = FastAPI(title="Word Alignment API")
+# --------- MODEL LOADING ---------- #
+@app.on_event("startup")
+def load_model():
+    global tokenizer, model
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModel.from_pretrained(MODEL_NAME)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    model.eval()
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 @app.get("/")
 def index():
@@ -56,16 +66,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --------- MODEL LOADING (ONCE) ----------
 
-MODEL_NAME = "aneuraz/awesome-align-with-co"
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModel.from_pretrained(MODEL_NAME)
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-model.eval()
 
 translator = pipeline(
      "translation_de_to_en",
