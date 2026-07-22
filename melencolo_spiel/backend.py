@@ -19,10 +19,15 @@ app = FastAPI(title="Word Alignment API")
 # --------- MODEL LOADING ---------- #
 @app.on_event("startup")
 def load_model():
-    global tokenizer, model
+    global tokenizer, model, translator, device
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = AutoModel.from_pretrained(MODEL_NAME)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    translator = pipeline(
+     "translation_de_to_en",
+     model="Helsinki-NLP/opus-mt-de-en",
+     device=0 if torch.cuda.is_available() else -1
+    )
     model.to(device)
     model.eval()
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
@@ -69,11 +74,6 @@ app.add_middleware(
 
 
 
-translator = pipeline(
-     "translation_de_to_en",
-     model="Helsinki-NLP/opus-mt-de-en",
-     device=0 if torch.cuda.is_available() else -1
- )
 
 ALIGN_LAYER = 8
 THRESHOLD = 1e-3
