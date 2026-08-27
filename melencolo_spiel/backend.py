@@ -33,7 +33,7 @@ def load_model():
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 @app.get("/")
 def index():
-       return FileResponse("static/frontend.html")
+       return FileResponse("static/jammer.html")
 
 def build_game(selected_pairs):
     english_words = [p["en"] for p in selected_pairs]
@@ -70,10 +70,6 @@ app.add_middleware(
     allow_methods=["*"],        # <-- THIS enables OPTIONS
     allow_headers=["*"],
 )
-
-
-
-
 
 ALIGN_LAYER = 8
 THRESHOLD = 1e-3
@@ -142,9 +138,6 @@ def align_sentence(src: str):
     ]
 
 ### DASHBOARD ###
-
-
-
 @app.post("/align", response_model=AlignResponse)
 def align(req: AlignRequest):
     pairs = align_sentence(req.text)
