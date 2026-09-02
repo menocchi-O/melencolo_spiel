@@ -19,10 +19,15 @@
 
 .phone {
     position: relative;
-    width: min(90%, 400px);
+    width: 280px;
+    height: 600px;
+    background-color: #8b8b8b;
+    border: 10px solid #000;
+    border-radius: 10px;
+    padding: 20px;
 }
 
-    .phone > image {
+.phone > img {
         display: block;
         width: 100%;
         height: auto;
@@ -40,10 +45,23 @@
     padding: 10px;
 }
 
-    .phoneScreen p {
+#resultTable {
+        width: 100%;
         margin: 0;
         text-align: center;
+        display: none;
+        table-layout: fixed;
     }
+
+#resultTable thead {
+            position: sticky;
+            top: 0;
+        }
+#resultTable th,
+#resultTable td {
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
 
 #game {
     grid-column: 1;
@@ -55,8 +73,84 @@
     height: 100%;
 }
 
-    #game canvas {
+#game canvas {
         display: block;
         max-width: 100%;
         max-height: 90vh;
     }
+
+.hide {
+    display: none;
+}
+
+#pseudoCanvas {
+    position: relative;
+    background: #202020;
+    resize: none;
+    width: 260px;
+    height: 440px;
+    color: lightgray;
+    font-size: 22px;
+    border-style: none;
+}
+
+#buttonContainer {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    width: 100%;
+}
+
+#btnContainer_process #btnContainer_start {
+    display: grid;
+    grid-template-columns: repeat(1, 1fr);
+    width: 100%
+}
+
+#clearFrame {
+    background-color: #202020;
+    padding: 20px;
+    border-style: none;
+    position: relative;
+    width: 270px;
+    height: 450px;
+    overflow: auto;
+}
+
+#processBtn, #startBtn {
+    background-color: blue;
+    color: white;
+    width: 100%;
+    height: 60px;
+    font-size: 24px;
+    border-radius: 50%;
+}
+
+#textBtn, #translateBtn, #tableBtn {
+    background-color: #8b8b8b;
+    color: white;
+    width: 100%;
+    height: 60px;
+    font-size: 40px;
+    border: none;
+}
+
+#clearButton {
+    background-color: #202020;
+    color: white;
+    width: 10px;
+    height: 10px;
+    font-size: 20px;
+    border-style: none;
+    position: absolute;
+    top: 0px;
+    right: 15px;
+    justify-content: center;
+    align-items: center;
+    margin: 0%;
+}
+
+.clearBorder:focus, 
+.clearBorder:active{
+    border-style: none;
+    outline-style: none;
+}

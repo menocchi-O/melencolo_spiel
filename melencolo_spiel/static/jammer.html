@@ -15,24 +15,35 @@
     <div class="dashboard">
         <section class="inputPanel">
             <div class="phone">
-                <img src="/static/images/smartPhoneFrame.jpg" alt="Smartphone">
                 <div class="phoneScreen">
-                    <textarea id="inputText" placeholder="Paste German text here..."></textarea>
-                    <table id="resultTable" style="display:none;">
-                        <thead style="position:sticky; top:0;">
-                            <tr>
-                                <th>Keep</th>
-                                <th>German</th>
-                                <th>English</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
+                    <div id="clearFrame">
+                        <button id="clearButton">🞮</button>
+                        <textarea id="pseudoCanvas" class="clearBorder" placeholder="Paste German text here..."></textarea>
+                        <table id="table">
+                            <thead>
+                                <tr>
+                                    <th>Keep</th>
+                                    <th>German</th>
+                                    <th>English</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="buttonContainer">
+                        <button id="textBtn">📄</button>
+                        <button id="translateBtn">🌐</button>
+                        <button id="tableBtn">📅</button>
+                    </div>
+                    <div id="btnContainer_process">
+                        <button id="processBtn">▶</button>
+                    </div>
+                    <div id="btnContainer_start">
+                        <button id="startBtn">▶</button>
+                    </div>
                 </div>
-                <button id="runBtn">Align</button>
-                <button id="saveBtn" style="display:none;">
-                    Save Selected
-                </button>
+                
+                
             </div>
         </section>
         <section id="game">

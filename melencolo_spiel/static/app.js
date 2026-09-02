@@ -1,10 +1,13 @@
-const btnRun = document.getElementById("runBtn");
-const btnSave = document.getElementById("saveBtn");
+const processButton = document.getElementById("processBtn");
+const startButton = document.getElementById("startBtn");
+const textButton = document.getElementById("textBtn");
 const txt_area = document.getElementById("inputText");
 const table = document.getElementById("resultTable");
-const tbody = table.querySelector("tbody");
+//const tbody = table.querySelector("tbody");
 
-btnRun.onclick = async () => {
+
+
+processButton.onclick = async () => {
     const text = document.getElementById("inputText").value;
 
     // try {
@@ -40,8 +43,11 @@ btnRun.onclick = async () => {
     btnRun.style.display = "none";
     btnSave.style.display = "block";
 
+    console.log("before: "+window.innerWidth);
+    console.log("before: "+document.documentElement.clientWidth);
+
 };
-btnSave.onclick = async () => {
+startButton.onclick = async () => {
 
     const selected = [];
 
@@ -77,4 +83,10 @@ btnSave.onclick = async () => {
     const data = await res.json()
     if (data.status == "ok")
         startGame();
+
+    console.log("after: " + window.innerWidth);
+    console.log("after: " + document.documentElement.clientWidth);
 };
+textButton.onclick = async () => {
+
+}
