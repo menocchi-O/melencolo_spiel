@@ -1,20 +1,25 @@
-const processButton = document.getElementById("processBtn");
+﻿const processButton = document.getElementById("processBtn");
 const startButton = document.getElementById("startBtn");
+const divButtons = document.getElementById("buttonContainer");
+const divBtnProcess = document.getElementById("btnContainer_process");
+const divBtnStart = document.getElementById("btnContainer_start");
+const btnClear = document.getElementById("clearButton");
 const textButton = document.getElementById("textBtn");
-const txt_area = document.getElementById("inputText");
-const table = document.getElementById("resultTable");
-//const tbody = table.querySelector("tbody");
-
-
+const txt_area = document.getElementById("pseudoCanvas");
+const table = document.getElementById("table");
+const input_txt;
+const translation;
 
 processButton.onclick = async () => {
-    const text = document.getElementById("inputText").value;
+    processButton.innerHTML = "Loading...";
+    tbody = table.querySelector("tbody");
+    input_txt = txt_area.value;
 
     // try {
     const res = await fetch("http://127.0.0.1:8000/align", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ input_txt })
     });
 
     const data = await res.json();
@@ -38,19 +43,16 @@ processButton.onclick = async () => {
         tbody.appendChild(row);
     });
 
-    txt_area.style.display = "none";
-    table.style.display = "table";
-    btnRun.style.display = "none";
-    btnSave.style.display = "block";
-
-    console.log("before: "+window.innerWidth);
-    console.log("before: "+document.documentElement.clientWidth);
-
+    hideItems();
+    processButton.innerHTML = '▶';
+    table.classList.add("show-grid");
+    divBtnStart.classList.add("show-grid");
+    
 };
 startButton.onclick = async () => {
 
     const selected = [];
-
+    startButton.innerHTML = "Loading..."
     tbody.querySelectorAll("tr").forEach((row, i) => {
 
         const checked = row.querySelector("input").checked;
@@ -84,9 +86,37 @@ startButton.onclick = async () => {
     if (data.status == "ok")
         startGame();
 
-    console.log("after: " + window.innerWidth);
-    console.log("after: " + document.documentElement.clientWidth);
+    hideItems();
+    startButton.innerHTML = '▶';
+    txt_area.value = input_txt;
+    txt_area.classList.add("show-grid");
+    divButtons.classList.add("show-grid");
+
+};
+btnClear.onclick = () => {
+
 };
 textButton.onclick = async () => {
 
+}
+document.addEventListener("DOMContentLoaded", function () {
+    divBtnProcess.classList.remove("hide");
+    divBtnProcess.classList.add("show-grid");
+    divBtnStart.classList.remove("show-grid");
+    divBtnStart.classList.add("hide");
+    divButtons.classList.remove("show-grid");
+    divButtons.classList.add("hide");
+})
+
+function hideItems() {
+    txt_area.classList.remove("show-grid");
+    txt_area.classList.add("hide");
+    table.classList.remove("show-grid");
+    table.classList.add("hide");
+    divBtnProcess.classList.remove("show-grid");
+    divBtnProcess.classList.add("hide");
+    divBtnStart.classList.remove("show-grid");
+    divBtnStart.classList.add("hide");
+    divButtons.classList.remove("show-grid");
+    divButtons.classList.add("hide");
 }

@@ -132,10 +132,15 @@ def align_sentence(src: str):
     for i, j in torch.nonzero(mask):
         aligned.add((sub2word_src[i], sub2word_tgt[j]))
 
-    return [
+    dict_alignment = [
         {"de": src_words[i], "en": tgt_words[j]}
         for i, j in sorted(aligned)
     ]
+
+    return {
+        "translation": tgt,
+        "alignment": dict_alignment
+    }
 
 ### DASHBOARD ###
 @app.post("/align", response_model=AlignResponse)

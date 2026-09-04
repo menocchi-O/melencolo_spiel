@@ -1,6 +1,6 @@
 .dashboard {
     display: grid;
-    grid-template-columns: 3fr;
+    grid-template-columns: 1fr, 1fr;
     grid-template-rows: 1fr;
     gap: 20px;
     height: 100vh;
@@ -8,7 +8,7 @@
 }
 
 .inputPanel {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 1;
     display: flex;
     flex-direction: column;
@@ -20,75 +20,75 @@
 
 .phone {
     position: relative;
-    //display: block;
-    //flex-direction: column;
-    //width: 300px;
-    //height: 400px;
+    display: flex;
+    flex-direction: column;
+    width: 280px;
+    height: 600px;
     background-color: #8b8b8b;
     border: 10px solid #000;
     border-radius: 10px;
-    //padding-left: 20px;
+    overflow: hidden;
+    padding: 10px;
 }
 
 .phoneScreen {
     position: relative;
-    top: 10%;
-    left: 8%;
-    width: 200px;
-    height: 300px;
+    width: 100%;
+    height: 500px;
     overflow: hidden;
     box-sizing: border-box;
     overflow-y: auto;
+    padding-bottom: 10px;
 }
 
 #clearFrame {
     display: flex;
+    flex-direction: column;
     background-color: #202020;
-    //padding: 30px;
     border-style: none;
     position: relative;
     width: 100%;
     height: 100%;
-    overflow: auto;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding-top: 20px;
 }
 
 #pseudoCanvas {
-    position: relative;
     background: #202020;
+    box-sizing: border-box;
     resize: none;
     width: 100%;
-    height: 100%;
+    height: 500px;
     color: lightgray;
     font-size: 22px;
     border-style: none;
 }
 
-#resultTable {
+#table {
         width: 100%;
-        margin: 0;
+        margin-top: 10px;
         text-align: center;
         display: none;
         table-layout: fixed;
     }
 
-#resultTable thead {
+#table thead {
             position: sticky;
             top: 0;
         }
-#resultTable th,
-#resultTable td {
-            overflow-wrap: break-word;
-            word-break: break-word;
-        }
+#table th,
+#table td {
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
 
 #buttonContainer {
-    display: grid;
     grid-template-columns: repeat(3, 1fr);
     width: 100%;
 }
 
 #btnContainer_process, #btnContainer_start {
-    display: none;
     grid-template-columns: repeat(1, 1fr);
     width: 100%;
     position: relative;
@@ -150,7 +150,11 @@
     }
 
 .hide {
-    display: none;
+    display: none !important;
+}
+
+.show-grid {
+    display: grid !important;
 }
 
 
