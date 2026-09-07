@@ -84,11 +84,14 @@ class WordPair(BaseModel):
 
 
 class AlignResponse(BaseModel):
+    translation: str
     pairs: List[WordPair]
 
 
 def align_sentence(src: str):
     tgt = translator(src)[0]["translation_text"]
+
+    print(tgt);
 
     src_words = src.strip().split()
     tgt_words = tgt.strip().split()
@@ -137,16 +140,17 @@ def align_sentence(src: str):
         for i, j in sorted(aligned)
     ]
 
-    return {
-        "translation": tgt,
-        "alignment": dict_alignment
-    }
+    return tgt, dict_alignment
+    
 
 ### DASHBOARD ###
 @app.post("/align", response_model=AlignResponse)
 def align(req: AlignRequest):
-    pairs = align_sentence(req.text)
-    return {"pairs": pairs}
+    translation, pairs = align_sentence(req.text)
+    return {
+        "translation": translation,
+        "pairs": pairs
+    }
 
 @app.post("/save_pairs")
 async def save_pairs(data: dict):

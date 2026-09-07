@@ -5,25 +5,39 @@ const divBtnProcess = document.getElementById("btnContainer_process");
 const divBtnStart = document.getElementById("btnContainer_start");
 const btnClear = document.getElementById("clearButton");
 const textButton = document.getElementById("textBtn");
+const translateBtn = document.getElementById("translateBtn");
+const tableBtn = document.getElementById("tableBtn");
 const txt_area = document.getElementById("pseudoCanvas");
 const table = document.getElementById("table");
-const input_txt;
-const translation;
+let input_txt = "";
+let translation = "";
 
 processButton.onclick = async () => {
     processButton.innerHTML = "Loading...";
+    thead = table.querySelector("thead");
     tbody = table.querySelector("tbody");
     input_txt = txt_area.value;
 
+    const head_row = document.createElement("tr");
+    head_row.innerHTML = `
+                <th>
+                    keep
+                </th>
+                <th>German</th>
+                <th>English</th>
+            `;
+    thead.appendChild(head_row);
     // try {
     const res = await fetch("http://127.0.0.1:8000/align", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input_txt })
+        body: JSON.stringify({ text: input_txt })
     });
 
     const data = await res.json();
 
+    translation = data.translation;
+    console.log(data);
     tbody.innerHTML = "";
 
     data.pairs.forEach((pair, index) => {
@@ -97,15 +111,34 @@ btnClear.onclick = () => {
 
 };
 textButton.onclick = async () => {
-
+    hideItems();
+    txt_area.value = input_txt;
+    txt_area.classList.remove("hide");
+    txt_area.classList.add("show-grid");
+    divButtons.classList.remove("hide");
+    divButtons.classList.add("show-grid");
+};
+translateBtn.onclick = async () => {
+    hideItems();
+    txt_area.value = translation;
+    txt_area.classList.remove("hide");
+    txt_area.classList.add("show-grid");
+    divButtons.classList.remove("hide");
+    divButtons.classList.add("show-grid");
+}
+tableBtn.onclick = async () => {
+    hideItems();
+    table.classList.remove("hide");
+    table.classList.add("show-grid");
+    divButtons.classList.remove("hide");
+    divButtons.classList.add("show-grid");
 }
 document.addEventListener("DOMContentLoaded", function () {
+    hideItems();
+    txt_area.classList.remove("hide");
     divBtnProcess.classList.remove("hide");
+    txt_area.classList.add("show-grid");
     divBtnProcess.classList.add("show-grid");
-    divBtnStart.classList.remove("show-grid");
-    divBtnStart.classList.add("hide");
-    divButtons.classList.remove("show-grid");
-    divButtons.classList.add("hide");
 })
 
 function hideItems() {
