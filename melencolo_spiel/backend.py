@@ -97,12 +97,12 @@ class AlignResponse(BaseModel):
 
 def align_sentence(src: str):
     # ---------------------------------------------------------
-    # 1. Translate the complete German sentence
+    # 1. Translate
     # ---------------------------------------------------------
     tgt = translator(src)[0]["translation_text"]
 
-    print("GERMAN: ", src);
-    print("ENGLISH: ", tgt);
+    print("GERMAN: ", src)
+    print("ENGLISH:", tgt)
 
     src_words = src.strip().split()
     tgt_words = tgt.strip().split()
@@ -117,16 +117,17 @@ def align_sentence(src: str):
     token_tgt = [tokenizer.tokenize(w) for w in tgt_words]
 
     wid_src = [
-        tokenizer.convert_tokens_to_ids(tokens) 
+        tokenizer.convert_tokens_to_ids(tokens)
         for tokens in token_src
     ]
+
     wid_tgt = [
-        tokenizer.convert_tokens_to_ids(tokens) 
+        tokenizer.convert_tokens_to_ids(tokens)
         for tokens in token_tgt
     ]
 
     # ---------------------------------------------------------
-    # 3. Flatten tokens
+    # 3. Flatten
     # ---------------------------------------------------------
     flat_src = list(itertools.chain(*wid_src))
     flat_tgt = list(itertools.chain(*wid_tgt))
@@ -144,134 +145,189 @@ def align_sentence(src: str):
     )["input_ids"].to(device)
 
     # ---------------------------------------------------------
-    # 4. Map every subword token back to its original word
+    # 4. Map subwords -> words
     # ---------------------------------------------------------
     sub2word_src = []
+
     for word_idx, tokens in enumerate(token_src):
-        sub2word_src.extend(
-            [word_idx] * len(tokens)
-        )
+        sub2word_src.extend([word_idx] * len(tokens))
 
     sub2word_tgt = []
+
     for word_idx, tokens in enumerate(token_tgt):
-        sub2word_tgt.extend(
-            [word_idx] * len(tokens))
+        sub2word_tgt.extend([word_idx] * len(tokens))
 
     # ---------------------------------------------------------
-    # 5. Get contextual embeddings
+    # 5. Contextual embeddings
     # ---------------------------------------------------------
     with torch.no_grad():
 
         src_output = model(
             ids_src.unsqueeze(0),
-            output_hidden_states = True
+            output_hidden_states=True
         )
 
         tgt_output = model(
             ids_tgt.unsqueeze(0),
-            output_hidden_states = True
+            output_hidden_states=True
         )
+
         h_src = src_output.hidden_states[ALIGN_LAYER][0, 1:-1]
         h_tgt = tgt_output.hidden_states[ALIGN_LAYER][0, 1:-1]
 
-        # cosine similarity is more appropriate 
-        h_src = torch.nn.functional.normalize(h_src, p=2, dim=-1)
-        h_tgt = torch.nn.functional.normalize(h_tgt, p=2, dim=-1)
+        # Normalize => cosine similarity
+        h_src = torch.nn.functional.normalize(
+            h_src, p=2, dim=-1
+        )
+
+        h_tgt = torch.nn.functional.normalize(
+            h_tgt, p=2, dim=-1
+        )
 
         scores = torch.matmul(h_src, h_tgt.T)
 
-        # convert similarity to probabilities
-        s2t = torch.softmax(scores, dim=-1)
-        t2s = torch.softmax(scores, dim=-2)
-
     # ---------------------------------------------------------
-    # 6. Aggregate subword alignments into word alignments
+    # 6. Aggregate subword similarities into word similarities
     # ---------------------------------------------------------
     word_scores = {}
 
-    for src_sub_idx in range(len(sub2word_src)):
+    for src_sub_idx, src_word_idx in enumerate(sub2word_src):
 
-        src_word_idx = sub2word_src[src_sub_idx]
-
-        for tgt_sub_idx in range(len(sub2word_tgt)):
-
-            tgt_word_idx = sub2word_tgt[tgt_sub_idx]
-
-            score = (
-                s2t[src_sub_idx, tgt_sub_idx]
-                + t2s[src_sub_idx, tgt_sub_idx]
-            ) / 2
+        for tgt_sub_idx, tgt_word_idx in enumerate(sub2word_tgt):
 
             key = (src_word_idx, tgt_word_idx)
+
+            score = scores[
+                src_sub_idx,
+                tgt_sub_idx
+            ].item()
 
             if key not in word_scores:
                 word_scores[key] = []
 
-            word_scores[key].append(score.item())
+            word_scores[key].append(score)
 
-    # Average subword scores for each word pair
+    # Average subword scores
     for key in word_scores:
-        word_scores[key] = sum(word_scores[key]) / len(word_scores[key])
+        word_scores[key] = (
+            sum(word_scores[key])
+            / len(word_scores[key])
+        )
 
     # ---------------------------------------------------------
-    # 7. Find best English match for every German word
+    # 7. Find best candidates in BOTH directions
     # ---------------------------------------------------------
+    best_src_to_tgt = {}
+    best_tgt_to_src = {}
+
+    for src_idx in range(len(src_words)):
+
+        candidates = []
+
+        for tgt_idx in range(len(tgt_words)):
+
+            score = word_scores.get(
+                (src_idx, tgt_idx),
+                -1.0
+            )
+
+            candidates.append((score, tgt_idx))
+
+        candidates.sort(reverse=True)
+
+        if candidates:
+            best_src_to_tgt[src_idx] = candidates[0]
+
+    for tgt_idx in range(len(tgt_words)):
+
+        candidates = []
+
+        for src_idx in range(len(src_words)):
+
+            score = word_scores.get(
+                (src_idx, tgt_idx),
+                -1.0
+            )
+
+            candidates.append((score, src_idx))
+
+        candidates.sort(reverse=True)
+
+        if candidates:
+            best_tgt_to_src[tgt_idx] = candidates[0]
+
+    # ---------------------------------------------------------
+    # 8. Mutual alignment
+    #
+    # A pair is considered strong when:
+    #
+    #   German -> English chooses English
+    #   AND
+    #   English -> German chooses German
+    #
+    # This eliminates many accidental associations.
+    # ---------------------------------------------------------
+
+    MIN_SCORE = 0.25
+    RELATIVE_SCORE = 0.80
+
     alignments = []
 
     for src_idx, src_word in enumerate(src_words):
 
+        if src_idx not in best_src_to_tgt:
+            continue
+
+        best_score, best_tgt_idx = best_src_to_tgt[src_idx]
+
+        if best_score < MIN_SCORE:
+            continue
+
+        # Check mutuality
+        reverse = best_tgt_to_src.get(best_tgt_idx)
+
+        if reverse is None:
+            continue
+
+        reverse_score, reverse_src_idx = reverse
+
+        if reverse_src_idx != src_idx:
+            continue
+
+        # -----------------------------------------------------
+        # Find additional English words, but only if they are
+        # very close to the best candidate.
+        # -----------------------------------------------------
+
         candidates = []
 
-        for tgt_idx, tgt_word in enumerate(tgt_words):
+        for tgt_idx in range(len(tgt_words)):
 
             score = word_scores.get(
                 (src_idx, tgt_idx),
-                0.0
+                -1.0
             )
 
+            if score < MIN_SCORE:
+                continue
+
+            if score >= best_score * RELATIVE_SCORE:
+                candidates.append(
+                    (tgt_idx, score)
+                )
+
+        # Always include the best candidate
+        if best_tgt_idx not in [x[0] for x in candidates]:
             candidates.append(
-                (score, tgt_idx)
+                (best_tgt_idx, best_score)
             )
 
-        candidates.sort(
-            reverse=True,
-            key=lambda x: x[0]
-        )
+        # Sort by English position
+        candidates.sort(key=lambda x: x[0])
 
-        if not candidates:
-            continue
-
-        best_score, best_tgt_idx = candidates[0]
-
-        # -----------------------------------------------------
-        # Only keep reasonably meaningful alignments
-        # -----------------------------------------------------
-        if best_score < THRESHOLD:
-            continue
-
-        # -----------------------------------------------------
-        # Look for a second English word that is also strongly
-        # associated with this German word.
-        #
-        # This helps with things like:
-        #
-        # "zur Ruh" -> "to rest"
-        #
-        # rather than forcing everything into one word.
-        # -----------------------------------------------------
-        selected_target_indices = [best_tgt_idx]
-
-        if len(candidates) > 1:
-
-            second_score, second_idx = candidates[1]
-
-            if second_score >= best_score * 0.75:
-                selected_target_indices.append(second_idx)
-
-        # Remove duplicates while preserving order
-        selected_target_indices = sorted(
-            set(selected_target_indices)
-        )
+        selected_target_indices = [
+            idx for idx, score in candidates
+        ]
 
         english_phrase = " ".join(
             tgt_words[i]
@@ -286,8 +342,7 @@ def align_sentence(src: str):
             "target_indices": selected_target_indices,
         })
 
-    return tgt, alignments
-    
+    return tgt, alignments    
 
 ### DASHBOARD ###
 @app.post("/align", response_model=AlignResponse)
