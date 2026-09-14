@@ -1,4 +1,4 @@
-﻿# C version for translate_align
+﻿# THIS WILL BE THE TEST ENVIRONMENT FOR AWESOME-ALIGN
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from typing import List
