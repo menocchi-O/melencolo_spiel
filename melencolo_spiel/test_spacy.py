@@ -1,4 +1,5 @@
-﻿import spacy
+﻿import inspect
+import spacy
 
 
 # ---------------------------------------------------------
@@ -8,33 +9,79 @@
 nlp_de = spacy.load("de_core_news_sm")
 nlp_en = spacy.load("en_core_web_sm")
 
+# ---------------------------------------------------------
+# Functions
+# ---------------------------------------------------------
+def print_dependency_relations(doc, language):
 
+    print()
+    print("=" * 90)
+    print(f"{language} DEPENDENCY RELATIONS")
+    print("=" * 90)
+
+    print(
+        f"{'TOKEN':<15}"
+        f"{'HEAD':<15}"
+        f"{'DEP':<15}"
+        f"{'TOKEN INDEX':<15}"
+        f"{'HEAD INDEX':<15}"
+    )
+
+    print("-" * 90)
+
+    for token in doc:
+
+        if token.head != token:
+
+            print(
+                f"{token.text:<15}"
+                f"{token.head.text:<15}"
+                f"{token.dep_:<15}"
+                f"{token.i:<15}"
+                f"{token.head.i:<15}"
+            )
+def inspect_dependency_spans(doc):
+    print()
+    print("=" * 90)
+    print("POSSIBLE DEPENDENCY SPANS")
+    print("=" * 90)
+
+    for token in doc:
+        children = list(token.children)
+
+        if not children:
+            continue
+
+        # Token + direct children
+        indices = [token.i] + [child.i for child in children]
+        indices.sort()
+
+        words = [doc[i].text for i in indices]
+        span = " ".join(words)
+
+        print()
+        print(f"HEAD: {token.text}")
+        print(f"DEP : {token.dep_}")
+        print(f"SPAN: {span}")
+        print(
+            "TOKENS:",
+            ", ".join(
+                f"{child.text} ({child.dep_})"
+                for child in children
+            )
+        )
 # ---------------------------------------------------------
 # Test sentences
 # ---------------------------------------------------------
 
 german = """Geh ich vor der Nacht zur Ruh.
 Deck ich mich mit Schwermut zu.
-Die helle Welt will mir nicht glücken,
-Muss mich mit Finsternis verzücken.
-Es ist die totenschwangere Nacht
-Die uns verzückt, zu Sündern macht.
-Gebote, die wir übergehen.
-Kann im Dunkeln niemand sehen.
-Die Nacht ist wunderschön.
-Ich will nicht schlafen gehen."""
-english = """Before the night, I go to rest.
-I cover myself with melancholy.
-The bright world does not bring me joy,
-I must delight myself in darkness.
-
-It is the night, heavy with death,
-That enchants us, makes sinners of us.
-Commandments that we transgress—
-In the darkness, no one can see.
-
-The night is beautiful.
-I do not want to go to sleep.
+Die helle Welt will mir nicht glücken.
+Muss mich mit Finsternis verzücken"""
+english = """I'll go to sleep before night.
+I'll cover myself with melancholy.
+The bright world will not bring me joy.
+I must exalt with darkness.
 """
 
 
@@ -112,31 +159,7 @@ print_dependency_relations(
     doc_en,
     "ENGLISH"
 )
-def print_dependency_relations(doc, language):
 
-    print()
-    print("=" * 90)
-    print(f"{language} DEPENDENCY RELATIONS")
-    print("=" * 90)
-
-    print(
-        f"{'TOKEN':<15}"
-        f"{'HEAD':<15}"
-        f"{'DEP':<15}"
-        f"{'TOKEN INDEX':<15}"
-        f"{'HEAD INDEX':<15}"
+inspect_dependency_spans(
+    doc_de
     )
-
-    print("-" * 90)
-
-    for token in doc:
-
-        if token.head != token:
-
-            print(
-                f"{token.text:<15}"
-                f"{token.head.text:<15}"
-                f"{token.dep_:<15}"
-                f"{token.i:<15}"
-                f"{token.head.i:<15}"
-            )
