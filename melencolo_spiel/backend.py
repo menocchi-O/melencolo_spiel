@@ -7,6 +7,7 @@ from typing import List
 import torch
 import itertools
 import random
+import spacy
 
 from transformers import (
     AutoModel,
@@ -29,6 +30,7 @@ tokenizer = None
 model = None
 translator = None
 device = None
+nlp_de = None
 
 
 MODEL_NAME = "aneuraz/awesome-align-with-co"
@@ -57,6 +59,7 @@ def load_model():
     global model
     global translator
     global device
+    global nlp_de
 
     print("\nLoading alignment model...")
 
@@ -83,8 +86,16 @@ def load_model():
     model.to(device)
     model.eval()
 
-    print("Models loaded.\n")
+    # -----------------------------------------------------
+    # German spaCy model
+    # -----------------------------------------------------
 
+    print("Loading German spaCy model...")
+
+    nlp_de = spacy.load("de_core_news_sm")
+
+    print("spaCy German model loaded.")
+    print("Models loaded.\n")
 
 # =========================================================
 # STATIC FRONTEND
@@ -155,10 +166,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# =========================================================
+# PRINT CANDIDATES
+# =========================================================
+
+def print_dependency_candidates(candidates):
+
+    print()
+    print("=" * 75)
+    print("DEPENDENCY CANDIDATES")
+    print("=" * 75)
+
+    for candidate in candidates:
+
+        print(
+            f"{candidate['text']:<30}"
+            f"{candidate['token_indices']}"
+        )
+
+    print("=" * 75)
 
 # =========================================================
 # DATA MODELS
 # =========================================================
+
+
 
 class AlignRequest(BaseModel):
     text: str
@@ -206,9 +238,236 @@ def tokenize_words(text: str):
 
     return text.strip().split()
 
+# =========================================================
+# 3. SPACY DEPENDENCY CANDIDATES
+# =========================================================
+#
+# Generate possible German phrase candidates from the
+# dependency tree.
+#
+# Rules:
+#
+#   - ROOT tokens are excluded
+#   - punctuation is excluded
+#   - the HEAD itself is included
+#   - direct children are included
+#   - grandchildren are included
+#   - duplicate tokens are removed
+#   - at most one token of each POS is allowed
+#   - original sentence order is restored
+#
+# This stage does NOT use Awesome-Align.
+#
+# =========================================================
+
+def generate_dependency_candidates(doc):
+
+    candidates = []
+
+    for head in doc:
+
+        # -------------------------------------------------
+        # Ignore ROOT
+        # -------------------------------------------------
+
+        if head.dep_ == "ROOT":
+            continue
+
+        # -------------------------------------------------
+        # Ignore punctuation
+        # -------------------------------------------------
+
+        if head.pos_ == "PUNCT":
+            continue
+
+        children = list(head.children)
+
+        if not children:
+            continue
+
+        # -------------------------------------------------
+        # Start with the HEAD
+        # -------------------------------------------------
+
+        tokens = [head]
+
+        # -------------------------------------------------
+        # Add children
+        # -------------------------------------------------
+
+        tokens.extend(children)
+
+        # -------------------------------------------------
+        # Add grandchildren
+        # -------------------------------------------------
+
+        for child in children:
+
+            tokens.extend(
+                list(child.children)
+            )
+
+        # -------------------------------------------------
+        # Remove punctuation
+        # -------------------------------------------------
+
+        tokens = [
+            token
+            for token in tokens
+            if token.pos_ != "PUNCT"
+        ]
+
+        # -------------------------------------------------
+        # Remove duplicate tokens
+        # -------------------------------------------------
+
+        unique_tokens = {
+            token.i: token
+            for token in tokens
+        }
+
+        tokens = list(
+            unique_tokens.values()
+        )
+
+        # -------------------------------------------------
+        # At most one token of each POS
+        # -------------------------------------------------
+
+        pos_seen = set()
+        filtered_tokens = []
+
+        for token in tokens:
+
+            if token.pos_ in pos_seen:
+                continue
+
+            pos_seen.add(token.pos_)
+
+            filtered_tokens.append(token)
+
+        tokens = filtered_tokens
+
+        # -------------------------------------------------
+        # Need at least two tokens
+        # -------------------------------------------------
+
+        if len(tokens) < 2:
+            continue
+
+        # -------------------------------------------------
+        # Restore original sentence order
+        # -------------------------------------------------
+
+        tokens.sort(
+            key=lambda token: token.i
+        )
+
+        # -------------------------------------------------
+        # Create candidate
+        # -------------------------------------------------
+
+        text = " ".join(
+            token.text
+            for token in tokens
+        )
+
+        candidates.append({
+            "text": text,
+            "token_indices": [
+                token.i
+                for token in tokens
+            ],
+            "tokens": tokens
+        })
+
+    # -----------------------------------------------------
+    # Remove duplicate candidate strings
+    # -----------------------------------------------------
+
+    unique_candidates = {}
+
+    for candidate in candidates:
+
+        unique_candidates[
+            candidate["text"]
+        ] = candidate
+
+    return list(
+        unique_candidates.values()
+    )
+def generate_english_candidates(
+    german_candidate,
+    candidates,
+    top_k=1
+):
+    """
+    Build English phrase candidates from the existing
+    word-level alignment candidates.
+    """
+
+    target_indices = set()
+
+    for src_idx in german_candidate["token_indices"]:
+
+        source_candidates = [
+            candidate
+            for candidate in candidates
+            if candidate["src_index"] == src_idx
+        ]
+
+        source_candidates.sort(
+            key=lambda x: x["score"],
+            reverse=True
+        )
+
+        for candidate in source_candidates[:top_k]:
+            target_indices.add(candidate["tgt_index"])
+
+    return sorted(target_indices)
+def calculate_phrase_similarity(
+    german_text,
+    english_text,
+    tokenizer,
+    model,
+    device
+):
+    german_words = tokenize_words(german_text)
+    english_words = tokenize_words(english_text)
+
+    german_data = get_alignment_embeddings(
+        german_words,
+        tokenizer,
+        model,
+        device
+    )
+
+    english_data = get_alignment_embeddings(
+        english_words,
+        tokenizer,
+        model,
+        device
+    )
+
+    if (
+        german_data["embeddings"] is None
+        or english_data["embeddings"] is None
+    ):
+        return None
+
+    german_embedding = german_data["embeddings"].mean(dim=0)
+    english_embedding = english_data["embeddings"].mean(dim=0)
+
+    similarity = torch.nn.functional.cosine_similarity(
+        german_embedding,
+        english_embedding,
+        dim=0
+    )
+
+    return similarity.item()
 
 # =========================================================
-# 3. ALIGNMENT EMBEDDINGS
+# 4. ALIGNMENT EMBEDDINGS
 # =========================================================
 #
 # This function:
@@ -373,7 +632,7 @@ def get_alignment_embeddings(
 
 
 # =========================================================
-# 4. AWESOME-ALIGN WORD ALIGNMENT
+# 5. AWESOME-ALIGN WORD ALIGNMENT
 # =========================================================
 #
 # This implements the core alignment calculation used by
@@ -703,7 +962,7 @@ def print_strict_alignment(
     print("=" * 75)
 
 # =========================================================
-# 5. BUILD WORD PAIRS
+# 6. BUILD WORD PAIRS
 # =========================================================
 #
 # For now this function does NOT try to create phrases.
@@ -736,7 +995,7 @@ def build_word_pairs(src_words, tgt_words, alignment):
     return pairs
 
 # =========================================================
-# 6. ALIGN WORDS
+# 7. ALIGN WORDS
 # =========================================================
 #
 # This function is the alignment stage.
@@ -789,7 +1048,7 @@ def align_words(src, tgt):
 
 
 # =========================================================
-# 7. PRINT RAW ALIGNMENT
+# 8. PRINT RAW ALIGNMENT
 # =========================================================
 
 def print_alignment(
@@ -839,13 +1098,27 @@ def print_alignment(
 
 
 # =========================================================
-# 8. COMPLETE PIPELINE
+# 9. COMPLETE PIPELINE
 # =========================================================
 
 def align_sentence(src: str):
 
     # ---------------------------------------------------------
-    # 1. Translate
+    # 1. Analyze German sentence with spaCy
+    # ---------------------------------------------------------
+
+    doc_de = nlp_de(src)
+
+    dependency_candidates = (
+        generate_dependency_candidates(doc_de)    
+    )
+
+    print_dependency_candidates(
+        dependency_candidates    
+    )
+
+    # ---------------------------------------------------------
+    # 2. Translate
     # ---------------------------------------------------------
 
     tgt = translate_sentence(src)
@@ -854,7 +1127,7 @@ def align_sentence(src: str):
     tgt_words = tokenize_words(tgt)
 
     # ---------------------------------------------------------
-    # 2. Get contextual embeddings
+    # 3. Get contextual embeddings
     # ---------------------------------------------------------
 
     src_data = get_alignment_embeddings(
@@ -872,7 +1145,7 @@ def align_sentence(src: str):
     )
 
     # ---------------------------------------------------------
-    # 3. Calculate RAW similarity matrix
+    # 4. Calculate RAW similarity matrix
     # ---------------------------------------------------------
 
     raw_scores = calculate_raw_scores(
@@ -881,7 +1154,7 @@ def align_sentence(src: str):
     )
 
     # ---------------------------------------------------------
-    # 4. Convert raw subword scores into word candidates
+    # 5. Convert raw subword scores into word candidates
     # ---------------------------------------------------------
 
     candidates = extract_word_candidates(
@@ -893,8 +1166,37 @@ def align_sentence(src: str):
         top_k=3
     )
 
+    print()
+    print("=" * 75)
+    print("PHRASE CANDIDATES")
+    print("=" * 75)
+
+    for german_candidate in dependency_candidates:
+
+        english_indices = generate_english_candidates(
+        german_candidate,
+        candidates,
+        top_k=1
+        )
+
+        if not english_indices:
+            continue
+
+        english_text = " ".join(
+            tgt_words[i]
+            for i in english_indices
+        )
+
+        print(
+            f"{german_candidate['text']:<30}"
+            f" -> "
+            f"{english_text}"
+        )
+
+    print("=" * 75)
+
     # ---------------------------------------------------------
-    # 5. Calculate strict Awesome-Align links
+    # 6. Calculate strict Awesome-Align links
     # ---------------------------------------------------------
 
     strict_links = calculate_strict_alignment(
@@ -903,7 +1205,7 @@ def align_sentence(src: str):
     )
 
     # ---------------------------------------------------------
-    # 6. Diagnostic output
+    # 7. Diagnostic output
     # ---------------------------------------------------------
 
     print()
