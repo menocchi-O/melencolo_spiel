@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import torch
 import itertools
 import random
+import spacy
 
 from transformers import (
     AutoModel,
@@ -30,6 +31,8 @@ tokenizer = None
 model = None
 translator = None
 device = None
+nlp_de = None
+
 
 
 MODEL_NAME = "aneuraz/awesome-align-with-co"
@@ -50,6 +53,17 @@ app = FastAPI(title="Word Alignment API")
 # =========================================================
 # MODEL LOADING
 # =========================================================
+
+# -----------------------------------------------------
+# German spaCy model
+# -----------------------------------------------------
+
+print("Loading German spaCy model...")
+
+nlp_de = spacy.load("de_core_news_sm")
+
+print("spaCy German model loaded.")
+print("Models loaded.\n")
 
 @app.on_event("startup")
 def load_model():
@@ -573,128 +587,95 @@ def print_word_level_embeddings(
 #
 # =========================================================
 
-def generate_dependency_candidates(
-    doc
-):
+def generate_dependency_candidates(spacy_tokens):
+    """
+    Generate hypothetical sentence elements from:
+
+        HEAD
+        ├── CHILD
+        │   └── GRANDCHILD
+        └── CHILD
+
+    The returned indices refer to the canonical spaCy-token list,
+    which is also the index used by the original word embeddings.
+    """
 
     candidates = []
+    seen_candidates = set()
 
-    for head in doc:
+    # Map actual spaCy token -> canonical index
+    token_to_index = {
+        token: i
+        for i, token in enumerate(spacy_tokens)
+    }
 
-        # -------------------------------------------------
-        # Ignore ROOT
-        # -------------------------------------------------
+    for head in spacy_tokens:
 
-        if head.dep_ == "ROOT":
+        if head.is_punct or head.is_space:
             continue
 
-        # -------------------------------------------------
-        # Ignore punctuation
-        # -------------------------------------------------
-
-        if head.pos_ == "PUNCT":
-            continue
-
-        children = list(
-            head.children
-        )
-
-        if not children:
-            continue
-
-        # -------------------------------------------------
-        # HEAD
-        # -------------------------------------------------
-
-        tokens = [head]
-
-        # -------------------------------------------------
-        # CHILDREN
-        # -------------------------------------------------
-
-        tokens.extend(children)
-
-        # -------------------------------------------------
-        # GRANDCHILDREN
-        # -------------------------------------------------
-
-        for child in children:
-
-            tokens.extend(
-                list(child.children)
-            )
-
-        # -------------------------------------------------
-        # Remove punctuation
-        # -------------------------------------------------
-
-        tokens = [
-            token
-            for token in tokens
-            if token.pos_ != "PUNCT"
-        ]
-
-        # -------------------------------------------------
-        # Remove duplicate tokens
-        # -------------------------------------------------
-
-        unique_tokens = {
-            token.i: token
-            for token in tokens
+        indices = {
+            token_to_index[head]
         }
 
-        tokens = list(
-            unique_tokens.values()
-        )
+        # -----------------------------------------------------
+        # CHILDREN
+        # -----------------------------------------------------
 
-        # -------------------------------------------------
-        # At most one token per POS
-        # -------------------------------------------------
+        for child in head.children:
 
-        pos_seen = set()
-        filtered_tokens = []
-
-        for token in tokens:
-
-            if token.pos_ in pos_seen:
+            if child.is_punct or child.is_space:
                 continue
 
-            pos_seen.add(token.pos_)
+            if child not in token_to_index:
+                continue
 
-            filtered_tokens.append(token)
+            indices.add(
+                token_to_index[child]
+            )
 
-        tokens = filtered_tokens
+            # -------------------------------------------------
+            # GRANDCHILDREN
+            # -------------------------------------------------
 
-        # -------------------------------------------------
-        # Need at least two tokens
-        # -------------------------------------------------
+            for grandchild in child.children:
 
-        if len(tokens) < 2:
+                if grandchild.is_punct or grandchild.is_space:
+                    continue
+
+                if grandchild not in token_to_index:
+                    continue
+
+                indices.add(
+                    token_to_index[grandchild]
+                )
+
+        # Need at least two words
+        if len(indices) < 2:
             continue
 
-        # -------------------------------------------------
-        # Restore sentence order
-        # -------------------------------------------------
+        # Original sentence order
+        indices = sorted(indices)
 
-        tokens.sort(
-            key=lambda token: token.i
-        )
+        key = tuple(indices)
 
-        # -------------------------------------------------
-        # Candidate
-        # -------------------------------------------------
+        if key in seen_candidates:
+            continue
+
+        seen_candidates.add(key)
+
+        tokens = [
+            spacy_tokens[i]
+            for i in indices
+        ]
 
         candidates.append({
-
             "text": " ".join(
                 token.text
                 for token in tokens
             ),
 
-            "token_indices": [
-                token.i
-                for token in tokens
-            ],
+            "token_indices": indices,
 
             "tokens": [
                 token.text
@@ -703,32 +684,23 @@ def generate_dependency_candidates(
 
             "dependencies": [
                 {
-                    "index": token.i,
+                    "index": i,
                     "text": token.text,
                     "pos": token.pos_,
                     "dep": token.dep_,
-                    "head": token.head.text
+                    "head": token.head.text,
+                    "head_index": (
+                        token_to_index.get(
+                            token.head,
+                            None
+                        )
+                    ),
                 }
-                for token in tokens
-            ]
+                for i, token in zip(indices, tokens)
+            ],
         })
 
-    # -----------------------------------------------------
-    # Remove duplicate candidate strings
-    # -----------------------------------------------------
-
-    unique_candidates = {}
-
-    for candidate in candidates:
-
-        unique_candidates[
-            candidate["text"]
-        ] = candidate
-
-    return list(
-        unique_candidates.values()
-    )
-
+    return candidates
 
 # =========================================================
 # ATTACH ORIGINAL WORD EMBEDDINGS
@@ -745,13 +717,13 @@ def generate_dependency_candidates(
 
 def attach_original_embeddings(
     candidates,
-    word_embeddings
+    word_embeddings,
 ):
+    """
+    Attach references to the ORIGINAL word-level embeddings.
 
-    lookup = {
-        word.index: word
-        for word in word_embeddings
-    }
+    No embedding is recalculated here.
+    """
 
     result = []
 
@@ -759,52 +731,32 @@ def attach_original_embeddings(
 
         original_embeddings = []
 
-        for index in candidate[
-            "token_indices"
-        ]:
+        for index in candidate["token_indices"]:
 
-            if index not in lookup:
-
+            if index < 0 or index >= len(word_embeddings):
                 raise RuntimeError(
-                    "spaCy token index does not "
-                    "match word embedding index: "
-                    f"{index}"
+                    f"Embedding index out of range: {index}"
                 )
 
-            original_embeddings.append(
-                lookup[index]
-            )
+            embedding = word_embeddings[index]
 
-        result.append({
+            original_embeddings.append({
+                "index": embedding.index,
+                "text": embedding.text,
+                "shape": list(
+                    embedding.embedding.shape
+                ),
+            })
 
-            "text": candidate["text"],
+        candidate_copy = {
+            **candidate,
+            "original_embeddings":
+                original_embeddings,
+        }
 
-            "token_indices": candidate[
-                "token_indices"
-            ],
-
-            "tokens": candidate[
-                "tokens"
-            ],
-
-            "dependencies": candidate[
-                "dependencies"
-            ],
-
-            "original_embeddings": [
-                {
-                    "index": word.index,
-                    "text": word.text,
-                    "shape": list(
-                        word.embedding.shape
-                    )
-                }
-                for word in original_embeddings
-            ]
-        })
+        result.append(candidate_copy)
 
     return result
-
 
 # =========================================================
 # PRINT SPACY HYPOTHETICAL SENTENCE ELEMENTS
@@ -896,90 +848,108 @@ def print_dependency_candidates(
 
 def inspect_text(text):
 
-    # -----------------------------------------------------
-    # 1. Original words
-    # -----------------------------------------------------
+    print("\n" + "#" * 90)
+    print("INSPECTING TEXT")
+    print("#" * 90)
+    print(text)
+    print("#" * 90)
 
-    words = tokenize_words(text)
+    # =========================================================
+    # 1. SPAcy parses the original text
+    # =========================================================
 
-    if not words:
+    doc = nlp_de(text)
 
-        return {
-            "text": text,
-            "words": [],
-            "word_embeddings": [],
-            "dependency_candidates": []
-        }
+    print_spacy_tree(doc)
 
-    # -----------------------------------------------------
-    # 2. WORD-LEVEL CONTEXTUAL EMBEDDINGS
-    # -----------------------------------------------------
+    # =========================================================
+    # 2. spaCy is the canonical word tokenizer
+    # =========================================================
+
+    spacy_tokens = [
+        token
+        for token in doc
+        if not token.is_space
+    ]
+
+    words = [
+        token.text
+        for token in spacy_tokens
+    ]
+
+    print("\nCANONICAL WORDS")
+    print("-" * 90)
+
+    for i, token in enumerate(spacy_tokens):
+        print(
+            f"[{i}] {token.text}"
+        )
+
+    # =========================================================
+    # 3. Calculate ORIGINAL word-level contextual embeddings
+    #
+    # These are calculated exactly once.
+    # =========================================================
 
     word_embeddings = get_word_level_embeddings(
         words,
         tokenizer,
         model,
-        device
+        device,
     )
-
-    # -----------------------------------------------------
-    # PRINT STAGE 1
-    # -----------------------------------------------------
 
     print_word_level_embeddings(
         word_embeddings
     )
 
-    # -----------------------------------------------------
-    # 3. spaCy parse
-    # -----------------------------------------------------
-
-    doc = nlp_de(text)
-
-    # -----------------------------------------------------
-    # 4. Generate hypothetical candidates
-    # -----------------------------------------------------
+    # =========================================================
+    # 4. Generate hypothetical sentence elements
+    #
+    # spaCy ONLY selects original word indices here.
+    # No embeddings are recalculated.
+    # =========================================================
 
     candidates = generate_dependency_candidates(
-        doc
+        spacy_tokens
     )
 
-    # -----------------------------------------------------
-    # 5. Associate candidates with ORIGINAL embeddings
-    # -----------------------------------------------------
+    # =========================================================
+    # 5. Attach ORIGINAL embeddings
+    # =========================================================
 
     candidates = attach_original_embeddings(
         candidates,
-        word_embeddings
+        word_embeddings,
     )
 
-    # -----------------------------------------------------
-    # PRINT STAGE 2
-    # -----------------------------------------------------
+    # =========================================================
+    # 6. Print candidates
+    # =========================================================
 
     print_dependency_candidates(
         candidates
     )
 
-    # -----------------------------------------------------
-    # JSON-safe result
-    # -----------------------------------------------------
+    # =========================================================
+    # 7. JSON-safe response
+    # =========================================================
 
     return {
         "text": text,
 
         "words": [
             {
-                "index": word.index,
-                "text": word.text,
-                "embedding_dimension": word.embedding.shape[0]
+                "index": i,
+                "text": token.text,
+                "embedding_shape": list(
+                    word_embeddings[i].embedding.shape
+                ),
             }
-            for word in word_embeddings
+            for i, token in enumerate(spacy_tokens)
         ],
 
-        "dependency_candidates": candidates
+        "dependency_candidates": candidates,
     }
-
 
 # =========================================================
 # 4. AWESOME-ALIGN WORD ALIGNMENT
