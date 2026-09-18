@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>
+        Awesome-Align Word / Dependency Inspector
+    </title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 120px;
+            font-size: 18px;
+            padding: 12px;
+            box-sizing: border-box;
+        }
+
+        button {
+            margin-top: 15px;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+
+        .section {
+            margin-top: 35px;
+        }
+
+        .word {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+
+        .candidate {
+            padding: 15px;
+            margin: 12px 0;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+        .phrase {
+            font-size: 20px;
+            font-weight: bold;
+        }
+    </style>
+
+</head>
+
+
+<body>
+
+    <h1>
+        Awesome-Align Inspector
+    </h1>
+
+
+    <p>
+        Enter German text. This page first calculates the
+        word-level contextual embeddings and then generates
+        hypothetical dependency candidates with spaCy.
+    </p>
+
+
+<textarea id="text"
+          placeholder="Ich will nicht schlafen gehen"></textarea>
+
+
+    <br>
+
+
+    <button onclick="inspectText()">
+        Inspect
+    </button>
+
+
+    <div id="results"
+         class="section"></div>
+
+
+    <script>
+
+async function inspectText() {
+
+    const text =
+        document
+        .getElementById("text")
+        .value
+        .trim();
+
+    if (!text) {
+
+        return;
+
+    }
+
+    const response =
+        await fetch(
+            "/inspect",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+                    text: text
+                })
+            }
+        );
+
+    if (!response.ok) {
+
+        const error =
+            await response.text();
+
+        document
+            .getElementById("results")
+            .innerHTML =
+                `<pre>${error}</pre>`;
+
+        return;
+    }
+
+    const data =
+        await response.json();
+
+    renderResults(data);
+}
+
+
+function renderResults(data) {
+
+    const results =
+        document
+        .getElementById("results");
+
+    let html = "";
+
+
+    // =====================================================
+    // WORD LEVEL
+    // =====================================================
+
+    html += `
+        <div class="section">
+
+            <h2>
+                1. Word-level contextual embeddings
+            </h2>
+    `;
+
+
+    for (const word of data.words) {
+
+        html += `
+            <div class="word">
+
+                <strong>
+                    [${word.index}]
+                    ${escapeHtml(word.text)}
+                </strong>
+
+                <br>
+
+                embedding dimension:
+                ${word.embedding_dimension}
+
+            </div>
+        `;
+    }
+
+
+    html += `
+        </div>
+    `;
+
+
+    // =====================================================
+    // DEPENDENCY CANDIDATES
+    // =====================================================
+
+    html += `
+        <div class="section">
+
+            <h2>
+                2. spaCy hypothetical sentence elements
+            </h2>
+    `;
+
+
+    for (
+        const candidate
+        of data.dependency_candidates
+    ) {
+
+        html += `
+            <div class="candidate">
+
+                <div class="phrase">
+                    ${escapeHtml(
+                        candidate.text
+                    )}
+                </div>
+
+                <p>
+                    Word indices:
+                    ${candidate.token_indices.join(
+                        ", "
+                    )}
+                </p>
+
+                <p>
+                    Words:
+                    ${candidate.tokens
+                        .map(escapeHtml)
+                        .join(", ")}
+                </p>
+
+                <h4>
+                    Dependency structure
+                </h4>
+
+                <pre>${escapeHtml(
+                    JSON.stringify(
+                        candidate.dependencies,
+                        null,
+                        2
+                    )
+                )}</pre>
+
+                <h4>
+                    Original word embeddings
+                </h4>
+
+                <pre>${escapeHtml(
+                    JSON.stringify(
+                        candidate.original_embeddings,
+                        null,
+                        2
+                    )
+                )}</pre>
+
+            </div>
+        `;
+    }
+
+
+    html += `
+        </div>
+    `;
+
+
+    results.innerHTML = html;
+}
+
+
+function escapeHtml(value) {
+
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+    </script>
+
+
+</body>
+
+</html>
