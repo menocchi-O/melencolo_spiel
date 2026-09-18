@@ -679,77 +679,211 @@ def calculate_raw_scores(src_data, tgt_data):
         tgt_embeddings.transpose(-1, -2)
     )
 
-def extract_word_candidates(
+def calculate_word_score_matrix(
     src_words,
     tgt_words,
     src_data,
     tgt_data,
-    raw_scores,
-    top_k=3
+    raw_scores
 ):
     """
-    Convert the subword-level raw scores into word-level candidates.
+    Convert subword-level raw scores into a word-level
+    source -> target score matrix.
 
-    For every German source word, return the strongest English
-    candidate words.
+    Rows    = German words
+    Columns = English words
 
-    The score for a word pair is the average of all subword-pair
-    scores belonging to that word pair.
+    Each word-pair score is the average of all
+    corresponding subword-pair scores.
     """
 
     src_sub2word = src_data["sub2word"]
     tgt_sub2word = tgt_data["sub2word"]
 
-    word_scores = {}
+    word_scores = torch.zeros(
+        len(src_words),
+        len(tgt_words),
+        device=raw_scores.device
+    )
+
+    word_counts = torch.zeros(
+        len(src_words),
+        len(tgt_words),
+        device=raw_scores.device
+    )
 
     for src_sub_idx, src_word_idx in enumerate(src_sub2word):
 
         for tgt_sub_idx, tgt_word_idx in enumerate(tgt_sub2word):
 
-            score = raw_scores[
+            word_scores[
+                src_word_idx,
+                tgt_word_idx
+            ] += raw_scores[
                 src_sub_idx,
                 tgt_sub_idx
-            ].item()
+            ]
 
-            key = (src_word_idx, tgt_word_idx)
+            word_counts[
+                src_word_idx,
+                tgt_word_idx
+            ] += 1
 
-            word_scores.setdefault(key, []).append(score)
+    word_scores = word_scores / word_counts.clamp(min=1)
 
-    candidates = []
+    return word_scores
+
+def calculate_alignment_distribution(word_scores):
+    """
+    Convert raw word-level similarity scores into a
+    source -> target probability distribution.
+
+    Each German word gets a probability distribution
+    over all English words.
+    """
+
+    return torch.softmax(
+        word_scores,
+        dim=1
+    )
+
+def select_word_alignments(
+    src_words,
+    tgt_words,
+    word_scores,
+    distributions,
+    min_probability=0.10,
+    relative_threshold=0.50
+):
+    """
+    Select English alignment(s) for every German word.
+
+    min_probability:
+        Absolute minimum probability for a candidate.
+
+    relative_threshold:
+        Candidate must retain at least this fraction
+        of the strongest candidate's probability.
+    """
+
+    alignments = []
 
     for src_idx, src_word in enumerate(src_words):
 
-        source_candidates = []
+        probabilities = distributions[src_idx]
+
+        best_probability = probabilities.max().item()
+
+        candidates = []
 
         for tgt_idx, tgt_word in enumerate(tgt_words):
 
-            key = (src_idx, tgt_idx)
+            probability = probabilities[tgt_idx].item()
 
-            if key not in word_scores:
+            if probability < min_probability:
                 continue
 
-            scores = word_scores[key]
+            if probability < best_probability * relative_threshold:
+                continue
 
-            average_score = sum(scores) / len(scores)
-
-            source_candidates.append({
+            candidates.append({
                 "src_index": src_idx,
                 "tgt_index": tgt_idx,
                 "src_word": src_word,
                 "tgt_word": tgt_word,
-                "score": average_score
+                "raw_score": word_scores[
+                    src_idx,
+                    tgt_idx
+                ].item(),
+                "probability": probability
             })
 
-        source_candidates.sort(
-            key=lambda x: x["score"],
+        # Always keep the strongest candidate.
+        if not candidates:
+
+            best_idx = probabilities.argmax().item()
+
+            candidates.append({
+                "src_index": src_idx,
+                "tgt_index": best_idx,
+                "src_word": src_word,
+                "tgt_word": tgt_words[best_idx],
+                "raw_score": word_scores[
+                    src_idx,
+                    best_idx
+                ].item(),
+                "probability": best_probability
+            })
+
+        # Strongest first
+        candidates.sort(
+            key=lambda x: x["probability"],
             reverse=True
         )
 
-        candidates.extend(
-            source_candidates[:top_k]
+        alignments.extend(candidates)
+
+    return alignments
+
+def print_alignment_distribution(
+    src_words,
+    tgt_words,
+    word_scores,
+    distributions
+):
+    print()
+    print("=" * 90)
+    print("RAW SCORE DISTRIBUTION ACROSS ENGLISH SENTENCE")
+    print("=" * 90)
+
+    for src_idx, src_word in enumerate(src_words):
+
+        print()
+        print(f"GERMAN: {src_word}")
+        print("-" * 90)
+
+        entries = []
+
+        for tgt_idx, tgt_word in enumerate(tgt_words):
+
+            raw_score = word_scores[
+                src_idx,
+                tgt_idx
+            ].item()
+
+            probability = distributions[
+                src_idx,
+                tgt_idx
+            ].item()
+
+            entries.append(
+                (
+                    tgt_idx,
+                    tgt_word,
+                    raw_score,
+                    probability
+                )
+            )
+
+        entries.sort(
+            key=lambda x: x[3],
+            reverse=True
         )
 
-    return candidates
+        for tgt_idx, tgt_word, raw_score, probability in entries:
+
+            marker = "<--" if probability == entries[0][3] else ""
+
+            print(
+                f"{tgt_idx:>3}  "
+                f"{tgt_word:<20} "
+                f"raw={raw_score:>8.4f}   "
+                f"p={probability:>7.3f} "
+                f"{marker}"
+            )
+
+    print()
+    print("=" * 90)
 
 def print_raw_candidate_scores(src_words, tgt_words, src_data, tgt_data):
     """
@@ -1104,21 +1238,7 @@ def print_alignment(
 def align_sentence(src: str):
 
     # ---------------------------------------------------------
-    # 1. Analyze German sentence with spaCy
-    # ---------------------------------------------------------
-
-    doc_de = nlp_de(src)
-
-    dependency_candidates = (
-        generate_dependency_candidates(doc_de)    
-    )
-
-    print_dependency_candidates(
-        dependency_candidates    
-    )
-
-    # ---------------------------------------------------------
-    # 2. Translate
+    # 1. Translate
     # ---------------------------------------------------------
 
     tgt = translate_sentence(src)
@@ -1126,8 +1246,11 @@ def align_sentence(src: str):
     src_words = tokenize_words(src)
     tgt_words = tokenize_words(tgt)
 
+    if not src_words or not tgt_words:
+        return tgt, []
+
     # ---------------------------------------------------------
-    # 3. Get contextual embeddings
+    # 2. Get contextual embeddings
     # ---------------------------------------------------------
 
     src_data = get_alignment_embeddings(
@@ -1145,7 +1268,7 @@ def align_sentence(src: str):
     )
 
     # ---------------------------------------------------------
-    # 4. Calculate RAW similarity matrix
+    # 3. Raw contextual similarity
     # ---------------------------------------------------------
 
     raw_scores = calculate_raw_scores(
@@ -1154,99 +1277,159 @@ def align_sentence(src: str):
     )
 
     # ---------------------------------------------------------
-    # 5. Convert raw subword scores into word candidates
+    # 4. Convert subword scores -> word scores
     # ---------------------------------------------------------
 
-    candidates = extract_word_candidates(
+    word_scores = calculate_word_score_matrix(
         src_words,
         tgt_words,
         src_data,
         tgt_data,
-        raw_scores,
-        top_k=3
+        raw_scores
     )
+
+    # ---------------------------------------------------------
+    # 5. Normalize across the English sentence
+    # ---------------------------------------------------------
+
+    distributions = calculate_alignment_distribution(
+        word_scores
+    )
+
+    # ---------------------------------------------------------
+    # 6. Print the complete distribution
+    # ---------------------------------------------------------
+
+    print_alignment_distribution(
+        src_words,
+        tgt_words,
+        word_scores,
+        distributions
+    )
+
+    # ---------------------------------------------------------
+    # 7. Select actual alignments
+    # ---------------------------------------------------------
+
+    alignments = select_word_alignments(
+        src_words,
+        tgt_words,
+        word_scores,
+        distributions,
+        min_probability=0.10,
+        relative_threshold=0.50
+    )
+
+    # ---------------------------------------------------------
+    # 8. Print selected alignments
+    # ---------------------------------------------------------
 
     print()
     print("=" * 75)
-    print("PHRASE CANDIDATES")
+    print("SELECTED ALIGNMENTS")
     print("=" * 75)
 
-    for german_candidate in dependency_candidates:
-
-        english_indices = generate_english_candidates(
-        german_candidate,
-        candidates,
-        top_k=1
-        )
-
-        if not english_indices:
-            continue
-
-        english_text = " ".join(
-            tgt_words[i]
-            for i in english_indices
-        )
+    for alignment in alignments:
 
         print(
-            f"{german_candidate['text']:<30}"
+            f"{alignment['src_word']:<20}"
             f" -> "
-            f"{english_text}"
+            f"{alignment['tgt_word']:<20}"
+            f"raw={alignment['raw_score']:>8.4f}   "
+            f"p={alignment['probability']:.3f}"
         )
 
     print("=" * 75)
 
     # ---------------------------------------------------------
-    # 6. Calculate strict Awesome-Align links
+    # 9. Build API pairs
     # ---------------------------------------------------------
 
-    strict_links = calculate_strict_alignment(
-        src_data,
-        tgt_data
-    )
+    pairs = []
 
-    # ---------------------------------------------------------
-    # 7. Diagnostic output
-    # ---------------------------------------------------------
+    for alignment in alignments:
 
-    print()
-    print("=" * 75)
-    print("GERMAN:")
-    print(src)
-
-    print()
-    print("ENGLISH:")
-    print(tgt)
-
-    print("=" * 75)
-
-    print_word_candidates(
-        src_words,
-        tgt_words,
-        candidates,
-        top_k=3
-    )
-
-    print_strict_alignment(
-        src_words,
-        tgt_words,
-        strict_links
-    )
-
-    # ---------------------------------------------------------
-    # For now, return the strict links.
-    # Phrase grouping comes later.
-    # ---------------------------------------------------------
-
-    pairs = build_word_pairs(
-        src_words,
-        tgt_words,
-        strict_links
-    )
+        pairs.append({
+            "de": alignment["src_word"],
+            "en": alignment["tgt_word"],
+            "confidence": alignment["probability"],
+            "source_indices": [
+                alignment["src_index"]
+            ],
+            "target_indices": [
+                alignment["tgt_index"]
+            ]
+        })
 
     return tgt, pairs
 # =========================================================
 # API
 # =========================================================
+
+# =========================================================
+# 10. ALIGN FULL TEXT SENTENCE BY SENTENCE
+# =========================================================
+#
+# Split the German text into sentences with spaCy.
+#
+# Each sentence is:
+#
+#     German sentence
+#            ↓
+#        translation
+#            ↓
+#     Awesome-Align
+#
+# The individual results are then combined.
+#
+# =========================================================
+
+def align_text(text: str):
+
+    # -----------------------------------------------------
+    # 1. Split German text into sentences
+    # -----------------------------------------------------
+
+    doc = nlp_de(text)
+
+    all_pairs = []
+    translations = []
+
+    # -----------------------------------------------------
+    # 2. Process each sentence independently
+    # -----------------------------------------------------
+
+    for sent in doc.sents:
+
+        src = sent.text.strip()
+
+        if not src:
+            continue
+
+        print()
+        print()
+        print("#" * 75)
+        print("PROCESSING SENTENCE")
+        print("#" * 75)
+        print(src)
+        print("#" * 75)
+
+        # -------------------------------------------------
+        # Translate and align this sentence
+        # -------------------------------------------------
+
+        tgt, pairs = align_sentence(src)
+
+        translations.append(tgt)
+        all_pairs.extend(pairs)
+
+    # -----------------------------------------------------
+    # 3. Combine sentence translations
+    # -----------------------------------------------------
+
+    translation = " ".join(translations)
+
+    return translation, all_pairs
 
 @app.post(
     "/align",
@@ -1254,10 +1437,14 @@ def align_sentence(src: str):
 )
 def align(req: AlignRequest):
 
-    translation, pairs = align_sentence(
+    # translation, pairs = align_sentence(
+    #     req.text
+
+    translation, pairs = align_text(
         req.text
     )
-
+    
+    print("TRANSLATION: ************** "+translation);
     return {
         "translation": translation,
         "pairs": pairs
