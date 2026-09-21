@@ -1,4 +1,4 @@
-﻿
+﻿# TRANSLATE_ALIGN VERSION --> DOES NOT PRINT ANYTHING
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from typing import List
