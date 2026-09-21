@@ -1,4 +1,6 @@
-﻿from fastapi import FastAPI
+﻿### TRUNK VERSION ###
+
+from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 import torch
