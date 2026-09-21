@@ -96,46 +96,68 @@ def align_sentence(src: str):
     print(tgt);
 
     src_words = src.strip().split()
+    print("********* SOURCE WORDS *********: ")
+    print(src_words)
     tgt_words = tgt.strip().split()
+    print("********* TARGET WORDS *********: ")
+    print(tgt_words)
 
     token_src = [tokenizer.tokenize(w) for w in src_words]
+    print("********* SOURCE TOKENS *********: ")
+    print(token_src)
     token_tgt = [tokenizer.tokenize(w) for w in tgt_words]
+    print("********* TARGET TOKENS *********: ")
+    print(token_tgt)
 
-    wid_src = [tokenizer.convert_tokens_to_ids(x) for x in token_src]
+    wid_src = [tokenizer.convert_tokens_to_ids(x) for x in token_src]                           # tokenizer.convert_tokens_to_ids(...) turns: ["Das", "Haus", "ist"] into: [1234, 5678, 9012] || It's important not to interpret 1234 as some semantic representation of "Das". It's just an ID.
+    print("********* SOURCE WIDs *********: ")
+    print(wid_src)
     wid_tgt = [tokenizer.convert_tokens_to_ids(x) for x in token_tgt]
+    print("********* TARGET WIDs *********: ")
+    print(wid_tgt)
 
-    ids_src = tokenizer.prepare_for_model(
+    ids_src = tokenizer.prepare_for_model(                                                      # prepare_for_model() is preparing those IDs to be fed into the Transformer.Depending on the model/tokenizer, this can involve things such as adding special tokens.
         list(itertools.chain(*wid_src)),
-        return_tensors="pt",
+        return_tensors="pt",                                                                    # it means: "Give me the result as a PyTorch tensor."
         truncation=True
-    )["input_ids"].to(device)
-
+    )["input_ids"].to(device)                                                                   # moves that tensor to your CPU/GPU device.
+    print("********* SOURCE IDs *********: ")
+    print(ids_src)
+    
     ids_tgt = tokenizer.prepare_for_model(
         list(itertools.chain(*wid_tgt)),
         return_tensors="pt",
         truncation=True
-    )["input_ids"].to(device)
+    )["input_ids"].to(device)                                                                   
+    print("********* TARGET IDs *********: ")
+    print(ids_tgt)
 
+    ### RE-ASSOCIATES THE SET OF SUBWORDS TO EACH WORD
     sub2word_src = []
     for i, w in enumerate(token_src):
-        sub2word_src += [i] * len(w)
+        sub2word_src += [i] * len(w)                                                            # It does not mean "multiply the index by the length." It means: Create a list containing the index i, repeated len(w) times.
+    print("********* SOURCE SUB2WORD *********: ")
+    print(sub2word_src)
 
     sub2word_tgt = []
     for i, w in enumerate(token_tgt):
         sub2word_tgt += [i] * len(w)
+    print("********* TARGET SUB2WORD *********: ")
+    print(sub2word_tgt)
 
-    with torch.no_grad():
-        h_src = model(ids_src.unsqueeze(0), output_hidden_states=True)[2][ALIGN_LAYER][0, 1:-1]
+    ### THE ACTUAL VECTOR REPRESENTATION ###
+    with torch.no_grad():                                                                       # no_grad() means that we're skipping the training part - remembering the performed operations
+        h_src = model(ids_src.unsqueeze(0), output_hidden_states=True)[2][ALIGN_LAYER][0, 1:-1] # Give me the hidden states corresponding to the layer I want - contains the contextual vector representation for every source subword token, at the selected Transformer layer
         h_tgt = model(ids_tgt.unsqueeze(0), output_hidden_states=True)[2][ALIGN_LAYER][0, 1:-1]
 
-        scores = torch.matmul(h_src, h_tgt.T)
-        s2t = torch.softmax(scores, dim=-1)
-        t2s = torch.softmax(scores, dim=-2)
-        mask = (s2t > THRESHOLD) & (t2s > THRESHOLD)
+        scores = torch.matmul(h_src, h_tgt.T)                                                   # performs dot-product on every pair and create a matrix
+        s2t = torch.softmax(scores, dim=-1)                                                     # gives you normalized scores/weights and a distribution over candidates , considering the CONTEXT                                                     
+        t2s = torch.softmax(scores, dim=-2)                                                     # THE BEST CANDIDATE DOES NOT CORRESPOND TO A PERCENTAGE OF PLAUSIBLE TRANSLATION BUT TO AN ALIGNMENT WEIGHT
+        mask = (s2t > THRESHOLD) & (t2s > THRESHOLD)                                            # Think of mask as a filter laid over the score matrix
 
     aligned = set()
-    for i, j in torch.nonzero(mask):
-        aligned.add((sub2word_src[i], sub2word_tgt[j]))
+    for i, j in torch.nonzero(mask):                                                            # finds the positions where mask == True
+        aligned.add((sub2word_src[i], sub2word_tgt[j]))                                         # It takes subword alignment ↓ (i, and converts it into: word alignment ↓ (sub2word_src[i], sub2word_tgt[j])
 
     dict_alignment = [
         {"de": src_words[i], "en": tgt_words[j]}
