@@ -10,11 +10,17 @@ from transformers import AutoModel, AutoTokenizer, pipeline, AutoModelForSeq2Seq
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+import spacy
 
 selected_pairs = []
 tokenizer = None
 model = None
 device = None
+nlp_de = spacy.load("de_core_news_sm")
+
+CHUNK_THRESHOLD = 80
+ALIGN_LAYER = 8
+THRESHOLD = 1e-3
 
 MODEL_NAME = "aneuraz/awesome-align-with-co"
 #MODEL_NAME = "google/madlad400-3b-mt"
@@ -39,7 +45,6 @@ app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 @app.get("/")
 def index():
        return FileResponse("static/jammer.html")
-
 def build_game(selected_pairs):
     english_words = [p["en"] for p in selected_pairs]
 
@@ -66,6 +71,43 @@ def build_game(selected_pairs):
         })
 
     return game
+def split_into_sentences(text):
+    doc = nlp_de(text)
+    return [sent.text.strip() for sent in doc.sents]
+def chunk_text(text):
+    words = text.split()
+
+    # Short text: don't touch it
+    if len(words) <= CHUNK_THRESHOLD:
+        return [text.strip()]
+
+    # Long text: sentence segmentation
+    doc = nlp_de(text)
+    sentences = [sent.text.strip() for sent in doc.sents]
+
+    chunks = []
+    current = []
+    current_size = 0
+
+    for sentence in sentences:
+        sentence_size = len(sentence.split())
+
+        # Sentence itself is small enough
+        if current_size + sentence_size <= CHUNK_THRESHOLD:
+            current.append(sentence)
+            current_size += sentence_size
+
+        else:
+            if current:
+                chunks.append(" ".join(current))
+
+            current = [sentence]
+            current_size = sentence_size
+
+    if current:
+        chunks.append(" ".join(current))
+
+    return chunks
 
 # 🔥 CORS — MUST be here
 app.add_middleware(
@@ -76,8 +118,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ALIGN_LAYER = 8
-THRESHOLD = 1e-3
 
 class AlignRequest(BaseModel):
     text: str
@@ -181,10 +221,26 @@ def align_sentence(src: str):
 
     return tgt, build_word_pairs(src_words, tgt_words, alignment)
 
+def align_text(src: str):
+
+    chunks = chunk_text(src)
+
+    all_pairs = []
+    translations = []
+
+    for chunk in chunks:
+
+        translation, pairs = align_sentence(chunk)
+
+        translations.append(translation)
+        all_pairs.extend(pairs)
+
+    return " ".join(translations), all_pairs
+
 ### DASHBOARD ###
 @app.post("/align", response_model=AlignResponse)
 def align(req: AlignRequest):
-    translation, pairs = align_sentence(req.text)
+    translation, pairs = align_text(req.text)
     return {
         "translation": translation,
         "pairs": pairs
