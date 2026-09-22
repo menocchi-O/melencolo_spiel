@@ -66,9 +66,6 @@ async function create() {
     this.platform = this.physics.add.staticImage(400, 560, 'platform');
     this.lift = this.physics.add.staticImage(580, 520, 'lift')
     this.jars = this.physics.add.group();
-    this.words = await loadWords();
-    console.log(this.words)
-
 
     this.basketBottom = this.add.image(580, 500, "basketBottom");
     this.basketBottom.setDepth(5);
@@ -82,9 +79,9 @@ async function create() {
 
 }
 
-function startGame() {
+async function startGame() {
     const scene = window.gameScene;
-
+    console.log("GAME IS STARTING !!")
     if (!scene) {
         console.error("Phaser scene is not ready yet.");
         return;
@@ -93,6 +90,8 @@ function startGame() {
     if (scene.gameTimer) {
         console.log("Game is already running.")
     }
+
+    scene.words = await loadWords();
 
     // Fire every 4 seconds
     scene.gameTimer = scene.time.addEvent({
@@ -111,7 +110,6 @@ function startGame() {
         }
     });
 
-    console.log("Game started!")
 }
 
 function spawnJar(scene) {
