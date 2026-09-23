@@ -180,10 +180,6 @@ def build_word_pairs(src_words, tgt_words, alignment):
         for i, j in sorted(alignment)
     ]
 
-def align_words(src, tgt):
-
-    return pairs
-
 def align_sentence(src: str):
     # ---------------------------------------------------------
     # 0. Translate
@@ -229,7 +225,9 @@ def align_text(src: str):
     translations = []
 
     for chunk in chunks:
-
+        print("************************* SENTENCE ***********************************")
+        print(chunk)
+        print("**********************************************************************")
         translation, pairs = align_sentence(chunk)
 
         translations.append(translation)
@@ -258,4 +256,5 @@ async def game_words():
 
 # Newer tasks to accomplish:
 #     - text fragmentation into smaller chunks before translating/processing;
+#     - detect trennbare verben
 #     - sentence/construct level alignment
