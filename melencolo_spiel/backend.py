@@ -108,6 +108,117 @@ def chunk_text(text):
         chunks.append(" ".join(current))
 
     return chunks
+def print_dep_tree(doc_de, src_words, best_alignments):
+
+    print()
+    print("=" * 120)
+    print("GERMAN DEPENDENCY TREE + ENGLISH ALIGNMENT")
+    print("=" * 120)
+
+    print(
+        f"{'TOKEN':<15}"
+        f"{'LEMMA':<15}"
+        f"{'POS':<10}"
+        f"{'DEP':<15}"
+        f"{'HEAD':<15}"
+        f"{'ENGLISH':<20}"
+        f"{'SCORE':<10}"
+    )
+
+    print("-" * 120)
+
+    for token in doc_de:
+
+        # Map spaCy token to whitespace-token index.
+        # This assumes the tokenization is compatible.
+        try:
+            i = src_words.index(token.text)
+            alignment = best_alignments[i]
+        except ValueError:
+            alignment = None
+
+        if alignment:
+            en = alignment["en"]
+            score = alignment["score"]
+        else:
+            en = ""
+            score = 0.0
+
+        print(
+            f"{token.text:<15}"
+            f"{token.lemma_:<15}"
+            f"{token.pos_:<10}"
+            f"{token.dep_:<15}"
+            f"{token.head.text:<15}"
+            f"{en:<20}"
+            f"{score:<10.4f}"
+        )
+def get_best_english_alignments(
+    src_words,
+    tgt_words,
+    s2t,
+    src_sub2word,
+    tgt_sub2word
+):
+    """
+    Convert subword-level German->English softmax scores
+    into word-level scores.
+
+    Returns the highest-scoring English word for each
+    German word.
+    """
+
+    src_word_count = len(src_words)
+    tgt_word_count = len(tgt_words)
+
+    # Word-level score matrix
+    word_scores = torch.zeros(
+        (src_word_count, tgt_word_count),
+        device=s2t.device
+    )
+
+    # Number of subword pairs contributing to each word pair
+    counts = torch.zeros(
+        (src_word_count, tgt_word_count),
+        device=s2t.device
+    )
+
+    # ---------------------------------------------------------
+    # Aggregate subword scores -> word scores
+    # ---------------------------------------------------------
+
+    for src_sub_idx, src_word_idx in enumerate(src_sub2word):
+
+        for tgt_sub_idx, tgt_word_idx in enumerate(tgt_sub2word):
+
+            score = s2t[src_sub_idx, tgt_sub_idx]
+
+            word_scores[src_word_idx, tgt_word_idx] += score
+            counts[src_word_idx, tgt_word_idx] += 1
+
+    # Average the scores of subword pairs
+    word_scores = word_scores / counts.clamp(min=1)
+
+    # ---------------------------------------------------------
+    # Find best English word for each German word
+    # ---------------------------------------------------------
+
+    results = []
+
+    for i, de_word in enumerate(src_words):
+
+        scores = word_scores[i]
+
+        best_j = torch.argmax(scores).item()
+        best_score = scores[best_j].item()
+
+        results.append({
+            "de": de_word,
+            "en": tgt_words[best_j],
+            "score": best_score
+        })
+
+    return results
 
 # 🔥 CORS — MUST be here
 app.add_middleware(
@@ -172,7 +283,8 @@ def calculate_word_alignment(src_vec, tgt_vec, src_sub2w, tgt_sub2w):
     aligned = set()
     for i, j in torch.nonzero(mask):
                aligned.add((src_sub2w[i], tgt_sub2w[j]))
-    return aligned
+    #return aligned
+    return aligned, s2t, t2s
 
 def build_word_pairs(src_words, tgt_words, alignment):
     return [
@@ -182,13 +294,20 @@ def build_word_pairs(src_words, tgt_words, alignment):
 
 def align_sentence(src: str):
     # ---------------------------------------------------------
+    # -1. German spaCy analysis
+    # ---------------------------------------------------------
+
+    doc_de = nlp_de(src)
+
+    src_words = [token.text for token in doc_de]
+    # ---------------------------------------------------------
     # 0. Translate
     # ---------------------------------------------------------
     tgt = translate_sentence(src)
     # ---------------------------------------------------------
     # 1. Split
     # ---------------------------------------------------------
-    src_words = split_words(src)
+    # src_words = split_words(src)
     tgt_words = split_words(tgt)
     # ---------------------------------------------------------
     # 2. Tokenize each word separately
@@ -213,9 +332,20 @@ def align_sentence(src: str):
     # ---------------------------------------------------------
     # 6. alignment
     # ---------------------------------------------------------
-    alignment = calculate_word_alignment(vec_src, vec_tgt, sub2word_src, sub2word_tgt)
+    alignment, s2t, t2s = calculate_word_alignment(vec_src, vec_tgt, sub2word_src, sub2word_tgt)
+    # ---------------------------------------------------------
+    # 7. Best English token for every German token
+    # ---------------------------------------------------------
 
-    return tgt, build_word_pairs(src_words, tgt_words, alignment)
+    best_alignments = get_best_english_alignments(
+    src_words,
+    tgt_words,
+    s2t,
+    sub2word_src,
+    sub2word_tgt
+)
+
+    return (doc_de, tgt, alignment, best_alignments)
 
 def align_text(src: str):
 
@@ -225,12 +355,28 @@ def align_text(src: str):
     translations = []
 
     for chunk in chunks:
-        print("************************* SENTENCE ***********************************")
-        print(chunk)
-        print("**********************************************************************")
-        translation, pairs = align_sentence(chunk)
+
+        (
+            doc_de,
+            translation,
+            alignment,
+            best_alignments
+        ) = align_sentence(chunk)
+
+        print_dep_tree(
+            doc_de,
+            [token.text for token in doc_de],
+            best_alignments
+        )
 
         translations.append(translation)
+
+        pairs = build_word_pairs(
+            [token.text for token in doc_de],
+            split_words(translation),
+            alignment
+        )
+
         all_pairs.extend(pairs)
 
     return " ".join(translations), all_pairs
