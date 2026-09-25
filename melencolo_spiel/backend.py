@@ -17,6 +17,7 @@ tokenizer = None
 model = None
 device = None
 nlp_de = spacy.load("de_core_news_sm")
+nlp_en = spacy.load("en_core_web_sm")
 
 CHUNK_THRESHOLD = 80
 ALIGN_LAYER = 8
@@ -118,7 +119,8 @@ def print_dep_tree(doc_de, src_words, best_alignments):
     print(
         f"{'TOKEN':<15}"
         f"{'LEMMA':<15}"
-        f"{'POS':<10}"
+        f"{'POS_DE':<10}"
+        f"{'POS_EN':<10}"
         f"{'DEP':<15}"
         f"{'HEAD':<15}"
         f"{'ENGLISH':<20}"
@@ -140,6 +142,8 @@ def print_dep_tree(doc_de, src_words, best_alignments):
         if alignment:
             en = alignment["en"]
             score = alignment["score"]
+            de_pos = alignment["de_pos"]
+            en_pos = alignment["en_pos"]
         else:
             en = ""
             score = 0.0
@@ -147,7 +151,8 @@ def print_dep_tree(doc_de, src_words, best_alignments):
         print(
             f"{token.text:<15}"
             f"{token.lemma_:<15}"
-            f"{token.pos_:<10}"
+            f"{de_pos:<10}"
+            f"{en_pos:<10}"
             f"{token.dep_:<15}"
             f"{token.head.text:<15}"
             f"{en:<20}"
@@ -155,7 +160,9 @@ def print_dep_tree(doc_de, src_words, best_alignments):
         )
 def get_best_english_alignments(
     src_words,
+    de_tokens,
     tgt_words,
+    en_tokens,
     s2t,
     src_sub2word,
     tgt_sub2word
@@ -212,9 +219,19 @@ def get_best_english_alignments(
         best_j = torch.argmax(scores).item()
         best_score = scores[best_j].item()
 
+        for token in de_tokens:
+            if (token.text == de_word):
+                de_pos = token.pos_
+
+        for token in en_tokens:
+            if (token.text == tgt_words[best_j]):
+                en_pos = token.pos_
+
         results.append({
             "de": de_word,
+            "de_pos": de_pos,
             "en": tgt_words[best_j],
+            "en_pos": en_pos,
             "score": best_score
         })
 
@@ -247,8 +264,8 @@ class AlignResponse(BaseModel):
 def translate_sentence(src: str) -> str:
     return translator(src)[0]["translation_text"]
 
-def split_words(txt: str):
-    return txt.strip().split()
+def split_words(doc):
+    return [token.text for token in doc]
 
 def tokenize_words(words, tokenizer):
     return [tokenizer.tokenize(w) for w in words]
@@ -296,19 +313,19 @@ def align_sentence(src: str):
     # ---------------------------------------------------------
     # -1. German spaCy analysis
     # ---------------------------------------------------------
-
     doc_de = nlp_de(src)
-
+    de_tokens = list(doc_de)
     src_words = [token.text for token in doc_de]
     # ---------------------------------------------------------
     # 0. Translate
     # ---------------------------------------------------------
     tgt = translate_sentence(src)
     # ---------------------------------------------------------
-    # 1. Split
+    # 1. English spaCy analysis
     # ---------------------------------------------------------
-    # src_words = split_words(src)
-    tgt_words = split_words(tgt)
+    doc_en = nlp_en(tgt)
+    en_tokens = list(doc_en)
+    tgt_words = [token.text for token in doc_en]
     # ---------------------------------------------------------
     # 2. Tokenize each word separately
     # ---------------------------------------------------------
@@ -339,13 +356,15 @@ def align_sentence(src: str):
 
     best_alignments = get_best_english_alignments(
     src_words,
+    de_tokens,
     tgt_words,
+    en_tokens,
     s2t,
     sub2word_src,
     sub2word_tgt
 )
 
-    return (doc_de, tgt, alignment, best_alignments)
+    return (doc_de, doc_en, tgt, alignment, best_alignments)
 
 def align_text(src: str):
 
@@ -358,6 +377,7 @@ def align_text(src: str):
 
         (
             doc_de,
+            doc_en,
             translation,
             alignment,
             best_alignments
@@ -373,7 +393,7 @@ def align_text(src: str):
 
         pairs = build_word_pairs(
             [token.text for token in doc_de],
-            split_words(translation),
+            split_words(doc_en),
             alignment
         )
 
