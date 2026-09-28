@@ -109,7 +109,7 @@ def chunk_text(text):
         chunks.append(" ".join(current))
 
     return chunks
-def print_dep_tree(doc_de, src_words, best_alignments):
+def print_dep_tree(best_alignments):
 
     print()
     print("=" * 120)
@@ -129,34 +129,35 @@ def print_dep_tree(doc_de, src_words, best_alignments):
 
     print("-" * 120)
 
-    for token in doc_de:
+    for best_alignment in best_alignments:
 
         # Map spaCy token to whitespace-token index.
         # This assumes the tokenization is compatible.
-        try:
-            i = src_words.index(token.text)
-            alignment = best_alignments[i]
-        except ValueError:
-            alignment = None
+        # try:
+        #     i = src_words.index(token.text)
+        #     if (best_alignments[i] is not None):
+        #         alignment = best_alignments[i]
+        # except ValueError:
+        #     alignment = None
 
-        if alignment:
-            en = alignment["en"]
-            score = alignment["score"]
-            de_pos = alignment["de_pos"]
-            en_pos = alignment["en_pos"]
-        else:
-            en = ""
-            score = 0.0
+        # if alignment:
+        #     en = alignment["en"]
+        #     score = alignment["score"]
+        #     de_pos = alignment["de_pos"]
+        #     en_pos = alignment["en_pos"]
+        # else:
+        #     en = ""
+        #     score = 0.0
 
         print(
-            f"{token.text:<15}"
-            f"{token.lemma_:<15}"
-            f"{de_pos:<10}"
-            f"{en_pos:<10}"
-            f"{token.dep_:<15}"
-            f"{token.head.text:<15}"
-            f"{en:<20}"
-            f"{score:<10.4f}"
+            f"{best_alignment["de"]:<15}"
+            f"{best_alignment["de_lemma"]:<15}"
+            f"{best_alignment["de_pos"]:<10}"
+            f"{best_alignment["en_pos"]:<10}"
+            f"{best_alignment["token_dep"]:<15}"
+            f"{best_alignment["token_head"]:<15}"
+            f"{best_alignment["en"]:<20}"
+            f"{best_alignment["score"]:<10.4f}"
         )
 def get_best_english_alignments(
     src_words,
@@ -209,7 +210,9 @@ def get_best_english_alignments(
     # ---------------------------------------------------------
     # Find best English word for each German word
     # ---------------------------------------------------------
-
+    en_token_by_text = {token.text: token for token in en_tokens}
+    de_token_by_text = {token.text: token for token in de_tokens}
+    
     results = []
 
     for i, de_word in enumerate(src_words):
@@ -218,21 +221,51 @@ def get_best_english_alignments(
 
         best_j = torch.argmax(scores).item()
         best_score = scores[best_j].item()
+        en = ""
 
-        for token in de_tokens:
-            if (token.text == de_word):
-                de_pos = token.pos_
+        # find corresponding German token
+        de_token = next(
+            (token for token in de_tokens if token.text == de_word),
+            None
+        )
 
-        for token in en_tokens:
-            if (token.text == tgt_words[best_j]):
-                en_pos = token.pos_
+        de_pos = de_token.pos_ if de_token is not None else ""
+        de_lemma = de_token.lemma_ if de_token is not None else ""
+        token_dep = de_token.dep_ if de_token is not None else ""
+        token_head = de_token.head.text if de_token is not None else ""
+        
+        # find corresponding English token
+        en_token = en_token_by_text.get(tgt_words[best_j])
+        en_pos = en_token.pos_ if en_token is not None else ""
+
+        # no punctuation
+        if(de_pos=="PUNCT" or en_pos=="PUNCT"):
+            continue;
+
+        # detect trennbare Verben
+        if (token_dep=="svp"):
+            root_head = de_token_by_text.get(token_head)
+            if (root_head.pos_=="VERB"):
+                de_word = de_word + root_head.lemma_
+                en = translate_sentence(de_word)
+            else:
+                en = tgt_words[best_j]
+        else:
+            en = tgt_words[best_j]
+
+        # no double entrance
+        if any(result["de"]==de_word and result["de_pos"]!=result["en_pos"] for result in results):
+            continue
 
         results.append({
             "de": de_word,
+            "de_lemma": de_lemma,
             "de_pos": de_pos,
-            "en": tgt_words[best_j],
+            "en": en,
             "en_pos": en_pos,
-            "score": best_score
+            "score": best_score,
+            "token_dep": token_dep,
+            "token_head": token_head
         })
 
     return results
@@ -303,10 +336,10 @@ def calculate_word_alignment(src_vec, tgt_vec, src_sub2w, tgt_sub2w):
     #return aligned
     return aligned, s2t, t2s
 
-def build_word_pairs(src_words, tgt_words, alignment):
+def build_word_pairs(best_alignments):
     return [
-        {"de": src_words[i], "en": tgt_words[j]}
-        for i, j in sorted(alignment)
+        {"de": best_alignment["de"], "en": best_alignment["en"]}
+        for best_alignment in best_alignments
     ]
 
 def align_sentence(src: str):
@@ -384,17 +417,13 @@ def align_text(src: str):
         ) = align_sentence(chunk)
 
         print_dep_tree(
-            doc_de,
-            [token.text for token in doc_de],
             best_alignments
         )
 
         translations.append(translation)
 
         pairs = build_word_pairs(
-            [token.text for token in doc_de],
-            split_words(doc_en),
-            alignment
+            best_alignments
         )
 
         all_pairs.extend(pairs)
