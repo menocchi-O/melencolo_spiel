@@ -150,14 +150,14 @@ def print_dep_tree(best_alignments):
         #     score = 0.0
 
         print(
-            f"{best_alignment["de"]:<15}"
-            f"{best_alignment["de_lemma"]:<15}"
-            f"{best_alignment["de_pos"]:<10}"
-            f"{best_alignment["en_pos"]:<10}"
-            f"{best_alignment["token_dep"]:<15}"
-            f"{best_alignment["token_head"]:<15}"
-            f"{best_alignment["en"]:<20}"
-            f"{best_alignment["score"]:<10.4f}"
+            f"{best_alignment['de']:<15}"
+            f"{best_alignment['de_lemma']:<15}"
+            f"{best_alignment['de_pos']:<10}"
+            f"{best_alignment['en_pos']:<10}"
+            f"{best_alignment['token_dep']:<15}"
+            f"{best_alignment['token_head']:<15}"
+            f"{best_alignment['en']:<20}"
+            f"{best_alignment['score']:<10.4f}"
         )
 def get_best_english_alignments(
     src_words,
