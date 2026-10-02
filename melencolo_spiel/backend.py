@@ -1,4 +1,7 @@
 ﻿# C version for translate_align
+
+print(">>> BACKEND.PY STARTING <<<", flush=True)
+
 import token
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -16,8 +19,14 @@ selected_pairs = []
 tokenizer = None
 model = None
 device = None
+
+print(">>> Loading spaCy models...", flush=True)
+
 nlp_de = spacy.load("de_core_news_sm")
 nlp_en = spacy.load("en_core_web_sm")
+
+print(">>> spaCy models loaded", flush=True)
+
 
 CHUNK_THRESHOLD = 80
 ALIGN_LAYER = 8
@@ -29,6 +38,9 @@ app = FastAPI(title="Word Alignment API")
 # --------- MODEL LOADING ---------- #
 @app.on_event("startup")
 def load_model():
+
+    print(">>> Loading transformer model...", flush=True)
+
     global tokenizer, model, translator, device
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = AutoModel.from_pretrained(MODEL_NAME)
@@ -42,6 +54,9 @@ def load_model():
     )
     model.to(device)
     model.eval()
+
+    print(">>> Transformer model loaded", flush=True)
+
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 @app.get("/")
 def index():
