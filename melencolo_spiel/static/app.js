@@ -1,4 +1,5 @@
-﻿const processButton = document.getElementById("processBtn");
+﻿/*RESPONSIVE MELENCOLO*/
+const processButton = document.getElementById("processBtn");
 const startButton = document.getElementById("startBtn");
 const divButtons = document.getElementById("buttonContainer");
 const divBtnProcess = document.getElementById("btnContainer_process");
