@@ -1,30 +1,80 @@
 /*RESPONSIVE MELENCOLO*/
+/* ================================================================
+   GLOBAL
+   ================================================================ */
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100%;
+}
+
+body {
+    background: #ffffff;
+    overflow-x: hidden;
+    font-family: Arial, sans-serif;
+}
+
+
+/* ================================================================
+   MAIN DASHBOARD
+   ================================================================ */
+
 .dashboard {
+    width: 100%;
+    min-height: 100dvh;
     display: grid;
-    grid-template-columns: 1fr, 1fr, 1fr;
+    /*
+        Desktop:
+        game on the left
+        phone on the right
+    */
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
     grid-template-rows: 1fr;
     gap: 20px;
-    height: 100vh;
+    padding: 20px;
     align-items: center;
 }
+
+
+/* ================================================================
+   INPUT PANEL
+   ================================================================ */
 
 .inputPanel {
     grid-column: 2;
     grid-row: 1;
+    width: 100%;
+    max-width: 400px;
     display: flex;
-    flex-direction: column;
     justify-content: center;
     align-items: center;
-    width: 400px;
-    height: 500px;
+    justify-self: center;
 }
+
+
+/* ================================================================
+   PHONE
+   ================================================================ */
 
 .phone {
     position: relative;
     display: flex;
     flex-direction: column;
+    /*
+        Logical desktop size.
+        The max-width/max-height rules below allow this to shrink
+        on smaller devices.
+    */
     width: 280px;
     height: 600px;
+    max-width: 100%;
+    max-height: calc(100dvh - 40px);
     background-color: #8b8b8b;
     border: 10px solid #000;
     border-radius: 10px;
@@ -32,153 +82,527 @@
     padding: 10px;
 }
 
+
+/* ================================================================
+   PHONE SCREEN
+   ================================================================ */
+
 .phoneScreen {
     position: relative;
     width: 100%;
-    height: 500px;
+    flex: 1 1 auto;
+    min-height: 0;
     box-sizing: border-box;
     padding-bottom: 10px;
     overflow: hidden;
 }
 
+
 #clearFrame {
     display: flex;
     flex-direction: column;
-    background-color: #202020;
-    border-style: none;
     position: relative;
     width: 100%;
     height: 100%;
+    background-color: #202020;
     overflow: hidden;
     box-sizing: border-box;
     padding-top: 30px;
 }
 
-#pseudoCanvas {
-    background: #202020;
-    box-sizing: border-box;
-    resize: none;
-    width: 100%;
-    height: 500px;
-    color: lightgray;
-    font-size: 22px;
-    border-style: none;
-    text-align:center;
-}
 
+/*
+    This is the scrollable area containing either the textarea
+    or the table.
+*/
 #screen_frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
+
+/* ================================================================
+   TEXT AREA
+   ================================================================ */
+
+#pseudoCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    background: #202020;
+    color: lightgray;
+    border: none;
+    outline: none;
+    resize: none;
+    text-align: center;
+    font-family: Arial, sans-serif;
+    font-size: 22px;
+    line-height: 1.4;
+    padding: 15px;
+    box-sizing: border-box;
+}
+
+
+/* ================================================================
+   TABLE
+   ================================================================ */
+
 #table {
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
-        text-align: center;
-        border: 1px solid white;
-    }
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    text-align: center;
+    border: 1px solid white;
+    font-size: 16px;
+}
 
 
     #table th,
     #table td {
         color: white;
         border: 1px solid white;
-        width: 100%;
-        overflow-wrap: break-word;
+        overflow-wrap: anywhere;
         word-break: break-word;
+        padding: 8px 4px;
     }
+
 
     #table th {
         background-color: darkgrey;
         color: black;
         position: sticky;
         top: 0;
+        z-index: 2;
     }
 
+
+    /*
+    Give the checkbox a useful touch target without changing
+    the actual checkbox appearance too much.
+*/
+    #table input[type="checkbox"] {
+        width: 20px;
+        align-items: center;
+        height: 20px;
+        cursor: pointer;
+    }
+
+
+/* ================================================================
+   CLEAR BUTTON
+   ================================================================ */
+
+#clearButton {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    z-index: 10;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    margin: 0;
+    background-color: #202020;
+    color: white;
+    border: none;
+    font-size: 22px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+
+/* ================================================================
+   NAVIGATION BUTTONS
+   ================================================================ */
+
 #buttonContainer {
+    display: grid;
     grid-template-columns: repeat(3, 1fr);
     width: 100%;
 }
 
-#btnContainer_process, #btnContainer_start {
-    grid-template-columns: repeat(1, 1fr);
+
+#textBtn,
+#translateBtn,
+#tableBtn {
+    width: 100%;
+    height: 60px;
+    padding: 0;
+    background-color: #8b8b8b;
+    color: white;
+    border: none;
+    font-size: 36px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+
+    #textBtn:active,
+    #translateBtn:active,
+    #tableBtn:active {
+        background-color: #707070;
+    }
+
+
+/* ================================================================
+   PROCESS / START BUTTONS
+   ================================================================ */
+
+#btnContainer_process,
+#btnContainer_start {
     width: 100%;
     position: relative;
 }
 
-#processBtn, #startBtn {
+
+#processBtn,
+#startBtn {
+    display: block;
+    width: 100%;
+    height: 60px;
+    padding: 0;
     background-color: blue;
     color: white;
-    width: 100%;
-    height: 60px;
-    font-size: 24px;
-    border-radius: 50%;
-}
-
-#textBtn, #translateBtn, #tableBtn {
-    background-color: #8b8b8b;
-    color: white;
-    width: 100%;
-    height: 60px;
-    font-size: 40px;
     border: none;
+    border-radius: 50%;
+    font-size: 24px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
-#clearButton {
-    background-color: #202020;
-    color: white;
-    width: 10px;
-    height: 10px;
-    font-size: 20px;
-    border-style: none;
-    position: absolute;
-    top: 0px;
-    right: 15px;
-    justify-content: center;
-    align-items: center;
-    margin: 0%;
-}
 
-.clearBorder:focus,
-.clearBorder:active {
-    border-style: none;
-    outline-style: none;
-}
+    #processBtn:active,
+    #startBtn:active {
+        transform: scale(0.97);
+    }
+
+
+/* ================================================================
+   GAME AREA
+   ================================================================ */
 
 #game {
     grid-column: 1;
     grid-row: 1;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
     display: flex;
     justify-content: center;
     align-items: center;
-    justify-items: center;
-    width: 100%;
-    height: 100%;
+    overflow: hidden;
 }
 
-canvas {
-    grid-column: 1;
-    grid-row: 1;
-    max-width: 100%;
-    max-height: 90vh;
-    background-color: #8b8b8b;
-    border: 10px solid #000;
-    border-radius: 10px;
-    overflow: hidden;
-    padding: 10px;
-}
+
+    /*
+    Phaser creates the canvas dynamically.
+
+    The canvas itself is controlled primarily by Phaser's scale
+    manager. These rules prevent it from overflowing its container.
+*/
+    #game canvas {
+        display: block;
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
+        border: 10px solid #000;
+        border-radius: 10px;
+        background-color: #8b8b8b;
+        box-sizing: border-box;
+    }
+
+
+/* ================================================================
+   UTILITY CLASSES
+   ================================================================ */
 
 .hide {
     display: none !important;
 }
 
+
 .show-grid {
     display: grid !important;
 }
 
+
 #table.show-grid {
     display: table !important;
+}
+
+
+/* ================================================================
+   TABLET / SMALL LAPTOP
+   ================================================================ */
+
+@media (max-width: 1000px) {
+
+    .dashboard {
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: 15px;
+        padding: 15px;
+    }
+
+    .phone {
+        width: 280px;
+        height: 600px;
+    }
+
+    #pseudoCanvas {
+        font-size: 20px;
+    }
+}
+
+
+/* ================================================================
+   PORTRAIT TABLETS / LARGE PHONES
+   ================================================================ */
+
+@media (max-width: 760px) {
+
+    .dashboard {
+        /*
+            Stack the controls above the game.
+        */
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 20px;
+        width: 100%;
+        min-height: 100dvh;
+        padding: 15px;
+    }
+
+
+    .inputPanel {
+        order: 1;
+        width: 100%;
+        max-width: 400px;
+        flex: 0 0 auto;
+    }
+
+
+    #game {
+        order: 2;
+        width: 100%;
+        /*
+            Preserve the game's 4:3 aspect ratio.
+        */
+        aspect-ratio: 4 / 3;
+        height: auto;
+        flex: 0 0 auto;
+    }
+
+
+    .phone {
+        width: 280px;
+        height: 600px;
+        /*
+            Never let the phone extend beyond the viewport.
+        */
+        max-width: calc(100vw - 30px);
+        /*
+            Leave room for the game below it.
+        */
+        max-height: min(600px, calc(100dvh - 40px));
+    }
+}
+
+
+/* ================================================================
+   SMARTPHONES
+   ================================================================ */
+
+@media (max-width: 480px) {
+
+    .dashboard {
+        gap: 15px;
+        padding: 10px;
+    }
+
+
+    .inputPanel {
+        width: 100%;
+    }
+
+
+    .phone {
+        /*
+            Scale the phone itself with the viewport.
+        */
+        width: min(280px, calc(100vw - 20px));
+        height: min(600px, 75dvh);
+        border-width: 7px;
+        border-radius: 9px;
+        padding: 7px;
+    }
+
+
+    #clearFrame {
+        padding-top: 28px;
+    }
+
+
+    #pseudoCanvas {
+        font-size: 18px;
+        padding: 12px;
+    }
+
+
+    #textBtn,
+    #translateBtn,
+    #tableBtn {
+        height: 54px;
+        font-size: 32px;
+    }
+
+
+    #processBtn,
+    #startBtn {
+        height: 54px;
+        font-size: 22px;
+    }
+
+
+    #table {
+        font-size: 14px;
+    }
+
+
+        #table th,
+        #table td {
+            padding: 6px 3px;
+        }
+
+
+    #clearButton {
+        width: 32px;
+        height: 32px;
+        top: 2px;
+        right: 5px;
+        font-size: 22px;
+    }
+
+
+    /*
+        The game gets almost the entire available width.
+    */
+    #game {
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        min-height: 0;
+    }
+
+
+        #game canvas {
+            border-width: 5px;
+            border-radius: 7px;
+        }
+}
+
+
+/* ================================================================
+   VERY SMALL PHONES
+   ================================================================ */
+
+@media (max-width: 360px) {
+
+    .dashboard {
+        padding: 6px;
+    }
+
+
+    .phone {
+        width: calc(100vw - 12px);
+    }
+
+
+    #pseudoCanvas {
+        font-size: 16px;
+    }
+
+
+    #textBtn,
+    #translateBtn,
+    #tableBtn {
+        height: 50px;
+        font-size: 28px;
+    }
+
+
+    #processBtn,
+    #startBtn {
+        height: 50px;
+    }
+}
+
+
+/* ================================================================
+   LANDSCAPE PHONES
+   ================================================================ */
+
+@media (max-height: 600px) and (orientation: landscape) {
+
+    .dashboard {
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: 15px;
+        padding: 8px;
+    }
+
+
+    .inputPanel {
+        order: 1;
+        width: 280px;
+        flex: 0 0 280px;
+    }
+
+
+    #game {
+        order: 2;
+        /*
+            In landscape, let the game use the remaining width.
+        */
+        width: min( calc(100vw - 310px), calc((100dvh - 16px) * 4 / 3) );
+        aspect-ratio: 4 / 3;
+        height: auto;
+    }
+
+
+    .phone {
+        width: 260px;
+        height: min(560px, calc(100dvh - 16px));
+    }
+}
+
+
+/* ================================================================
+   ACCESSIBILITY / REDUCED MOTION
+   ================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+
+    #processBtn,
+    #startBtn,
+    #textBtn,
+    #translateBtn,
+    #tableBtn {
+        transition: none;
+    }
 }
 
 
