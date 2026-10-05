@@ -1,156 +1,415 @@
 ﻿/*RESPONSIVE MELENCOLO*/
 const processButton = document.getElementById("processBtn");
 const startButton = document.getElementById("startBtn");
+
 const divButtons = document.getElementById("buttonContainer");
 const divBtnProcess = document.getElementById("btnContainer_process");
 const divBtnStart = document.getElementById("btnContainer_start");
+
 const btnClear = document.getElementById("clearButton");
+
 const textButton = document.getElementById("textBtn");
 const translateBtn = document.getElementById("translateBtn");
 const tableBtn = document.getElementById("tableBtn");
+
 const txt_area = document.getElementById("pseudoCanvas");
 const table = document.getElementById("table");
+
 let input_txt = "";
 let translation = "";
 
+
+/* ================================================================
+   PROCESS TEXT
+   ================================================================ */
+
 processButton.onclick = async () => {
+
     processButton.innerHTML = "Loading...";
-    thead = table.querySelector("thead");
-    tbody = table.querySelector("tbody");
+    processButton.disabled = true;
+
     input_txt = txt_area.value;
 
-    const head_row = document.createElement("tr");
-    head_row.innerHTML = `
-                <th>
-                    keep
-                </th>
-                <th>German</th>
-                <th>English</th>
-            `;
-    thead.appendChild(head_row);
-    // try {
-    const res = await fetch("http://127.0.0.1:8000/align", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: input_txt })
-    });
+    /*
+        Clear previous table contents before adding the new result.
+    */
+    const thead = table.querySelector("thead");
+    const tbody = table.querySelector("tbody");
 
-    const data = await res.json();
-
-    translation = data.translation;
-    console.log(data);
+    thead.innerHTML = "";
     tbody.innerHTML = "";
 
-    data.pairs.forEach((pair, index) => {
-        const row = document.createElement("tr");
+    const head_row = document.createElement("tr");
 
-        row.innerHTML = `
+    head_row.innerHTML = `
+        <th>keep</th>
+        <th>German</th>
+        <th>English</th>
+`;
+
+    thead.appendChild(head_row);
+
+
+    try {
+
+        /*
+            IMPORTANT:
+
+            Do NOT use 127.0.0.1 here.
+
+            A phone accessing the application sees 127.0.0.1
+            as the phone itself.
+
+            A relative URL means:
+                "use the same server that delivered this page".
+        */
+        const res = await fetch("/align", {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                text: input_txt
+            })
+        });
+
+
+        if (!res.ok) {
+            throw new Error(`Server returned HTTP ${ res.status } `);
+        }
+
+
+        const data = await res.json();
+
+        translation = data.translation;
+
+        console.log(data);
+
+
+        data.pairs.forEach((pair, index) => {
+
+            const row = document.createElement("tr");
+
+            row.innerHTML = `
                 <td>
                     <input
-                    type="checkbox"
-                    unchecked
-                    data-index="${index}">
+                        type="checkbox"
+                        data-index="${index}"
+                        aria-label="Keep ${pair.de}"
+                    >
                 </td>
+
                 <td>${pair.de}</td>
+
                 <td>${pair.en}</td>
-            `;
+`;
 
-        tbody.appendChild(row);
-    });
+            tbody.appendChild(row);
+        });
 
-    hideItems();
-    processButton.innerHTML = '▶';
-    table.classList.add("show-grid");
-    divBtnStart.classList.add("show-grid");
-    
+
+        hideItems();
+
+        table.classList.remove("hide");
+        table.classList.add("show-grid");
+
+        divBtnStart.classList.remove("hide");
+        divBtnStart.classList.add("show-grid");
+
+
+    } catch (error) {
+
+        console.error("Processing failed:", error);
+
+        alert(
+            "Unable to process the text.\n\n" +
+            "Please check that the backend server is running."
+        );
+
+    } finally {
+
+        processButton.innerHTML = "▶";
+        processButton.disabled = false;
+    }
 };
+
+
+/* ================================================================
+   START GAME
+   ================================================================ */
+
 startButton.onclick = async () => {
 
     const selected = [];
-    startButton.innerHTML = "Loading..."
-    tbody.querySelectorAll("tr").forEach((row, i) => {
 
-        const checked = row.querySelector("input").checked;
+    startButton.innerHTML = "Loading...";
+    startButton.disabled = true;
 
-        if (checked) {
+    const tbody = table.querySelector("tbody");
 
-            selected.push({
-                de: row.cells[1].textContent,
-                en: row.cells[2].textContent
-            });
+    /*
+        Only process rows that actually contain a checkbox.
 
+        This is safer than assuming that every <tr> has exactly
+        three cells.
+    */
+    const rows = tbody.querySelectorAll("tr");
+
+    rows.forEach((row) => {
+
+        const checkbox = row.querySelector(
+            'input[type="checkbox"][data-index]'
+        );
+
+        /*
+            Ignore incomplete/non-data rows.
+        */
+        if (!checkbox) {
+            return;
         }
 
+        /*
+            Get the actual data cells directly.
+        */
+        const cells = row.querySelectorAll(":scope > td");
+
+        console.log("VALORE CELLE: "+cells)
+
+        /*
+            A valid word-pair row must contain:
+                0 = checkbox
+                1 = German
+                2 = English
+        */
+        if (cells.length < 3) {
+            console.warn(
+                "Ignoring incomplete table row:",
+                row
+            );
+            return;
+        }
+
+        if (checkbox.checked) {
+
+            selected.push({
+                de: cells[1].textContent.trim(),
+                en: cells[2].textContent.trim()
+            });
+        }
     });
 
-    console.log(selected);
 
-    // POST to FastAPI if desired
+    console.log("Selected pairs:", selected);
 
-    const res = await fetch("/save_pairs", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            pairs: selected
-        })
-    });
 
-    const data = await res.json()
-    if (data.status == "ok")
+    /*
+        Optional but useful:
+        don't start the game if nothing was selected.
+    */
+    if (selected.length === 0) {
+
+        alert(
+            "Please select at least one word pair before starting the game."
+        );
+
+        startButton.innerHTML = "▶";
+        startButton.disabled = false;
+
+        return;
+    }
+
+
+    try {
+
+        const res = await fetch("/save_pairs", {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                pairs: selected
+            })
+        });
+
+
+        if (!res.ok) {
+            throw new Error(
+                `Server returned HTTP ${ res.status } `
+            );
+        }
+
+
+        const data = await res.json();
+
+
+        if (data.status !== "ok") {
+            throw new Error(
+                "Backend did not confirm saved pairs."
+            );
+        }
+
+
+        /*
+            Start Phaser game.
+        */
         startGame();
 
-    hideItems();
-    startButton.innerHTML = '▶';
-    txt_area.value = input_txt;
-    txt_area.classList.add("show-grid");
-    divButtons.classList.add("show-grid");
 
+        /*
+            Restore the text controls.
+        */
+        hideItems();
+
+        txt_area.value = input_txt;
+
+        txt_area.classList.remove("hide");
+        txt_area.classList.add("show-grid");
+
+        divButtons.classList.remove("hide");
+        divButtons.classList.add("show-grid");
+
+
+    } catch (error) {
+
+        console.error(
+            "Unable to start game:",
+            error
+        );
+
+        alert(
+            "Unable to start the game.\n\n" +
+            "Please check that the backend server is running."
+        );
+
+    } finally {
+
+        startButton.innerHTML = "▶";
+        startButton.disabled = false;
+    }
 };
+
+
+
+/* ================================================================
+   CLEAR BUTTON
+   ================================================================ */
+
 btnClear.onclick = () => {
 
-};
-textButton.onclick = async () => {
+    txt_area.value = "";
+
+    input_txt = "";
+    translation = "";
+
+    table.querySelector("thead").innerHTML = "";
+    table.querySelector("tbody").innerHTML = "";
+
     hideItems();
+
+    txt_area.classList.remove("hide");
+    txt_area.classList.add("show-grid");
+
+    divBtnProcess.classList.remove("hide");
+    divBtnProcess.classList.add("show-grid");
+
+    txt_area.focus();
+};
+
+
+/* ================================================================
+   ORIGINAL TEXT BUTTON
+   ================================================================ */
+
+textButton.onclick = () => {
+
+    hideItems();
+
     txt_area.value = input_txt;
+
     txt_area.classList.remove("hide");
     txt_area.classList.add("show-grid");
+
     divButtons.classList.remove("hide");
     divButtons.classList.add("show-grid");
 };
-translateBtn.onclick = async () => {
+
+
+/* ================================================================
+   TRANSLATION BUTTON
+   ================================================================ */
+
+translateBtn.onclick = () => {
+
     hideItems();
+
     txt_area.value = translation;
+
     txt_area.classList.remove("hide");
     txt_area.classList.add("show-grid");
+
     divButtons.classList.remove("hide");
     divButtons.classList.add("show-grid");
-}
-tableBtn.onclick = async () => {
+};
+
+
+/* ================================================================
+   TABLE BUTTON
+   ================================================================ */
+
+tableBtn.onclick = () => {
+
     hideItems();
+
     table.classList.remove("hide");
     table.classList.add("show-grid");
+
     divButtons.classList.remove("hide");
     divButtons.classList.add("show-grid");
-}
-document.addEventListener("DOMContentLoaded", function () {
+};
+
+
+/* ================================================================
+   INITIAL STATE
+   ================================================================ */
+
+document.addEventListener("DOMContentLoaded", () => {
+
     hideItems();
+
     txt_area.classList.remove("hide");
-    divBtnProcess.classList.remove("hide");
     txt_area.classList.add("show-grid");
+
+    divBtnProcess.classList.remove("hide");
     divBtnProcess.classList.add("show-grid");
-})
+});
+
+
+/* ================================================================
+   HIDE ALL SECONDARY UI
+   ================================================================ */
 
 function hideItems() {
+
     txt_area.classList.remove("show-grid");
     txt_area.classList.add("hide");
+
+
     table.classList.remove("show-grid");
     table.classList.add("hide");
+
+
     divBtnProcess.classList.remove("show-grid");
     divBtnProcess.classList.add("hide");
+
+
     divBtnStart.classList.remove("show-grid");
     divBtnStart.classList.add("hide");
+
+
     divButtons.classList.remove("show-grid");
     divButtons.classList.add("hide");
 }
