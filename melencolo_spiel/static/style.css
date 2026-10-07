@@ -216,7 +216,15 @@ body {
 
 
 #clearFrame {
-    display: flex;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    /*min-height: 0;*/
+    box-sizing: border-box;
+    padding-top: 0px;
+    overflow: hidden;
+    overflow: hidden;
+    /*display: flex;
     flex-direction: column;
     position: relative;
     width: 100%;
@@ -224,7 +232,7 @@ body {
     background-color: #202020;
     overflow: hidden;
     box-sizing: border-box;
-    padding-top: 30px;
+    padding-top: 10px;*/
 }
 
 
@@ -233,13 +241,25 @@ body {
     or the table.
 */
 #screen_frame {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-color: #202020;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    min-height: 0;
+    /*padding-top: 10px;
+
     position: relative;
     width: 100%;
     height: 100%;
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
+    -webkit-overflow-scrolling: touch;*/
 }
 
 
@@ -262,6 +282,7 @@ body {
     font-size: 22px;
     line-height: 1.4;
     padding: 15px;
+    /*padding-top: 25px;*/
     box-sizing: border-box;
 }
 
@@ -316,9 +337,13 @@ body {
    ================================================================ */
 
 #clearButton {
-    position: absolute;
-    top: 4px;
+    top: 0px;
     right: 8px;
+}
+
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    position: absolute;
     z-index: 10;
     width: 30px;
     height: 30px;
@@ -335,11 +360,18 @@ body {
     touch-action: manipulation;
 }
 
+#mop {
+    top: 0px;
+    right: 8px;
+}
+#save {
+    top: 0px;
+    right: 38px;
+}
 
 /* ================================================================
    NAVIGATION BUTTONS
    ================================================================ */
-
 #buttonContainer {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
