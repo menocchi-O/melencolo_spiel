@@ -42,6 +42,7 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 30px;
+    z-index: 1000;
 }
 /* Brand */
 
