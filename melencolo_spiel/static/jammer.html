@@ -12,10 +12,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bungee+Spice&display=swap" rel="stylesheet">
-
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=save" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=mop" />
-
+    <!-- BUTTONS -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=mop,save,table,translate,text_snippet,hourglass_pause&display=block" />
     <!-- Phaser -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
 </head>
@@ -67,10 +65,10 @@
                     <div id="screen_frame">
 
                         <div id="clearFrame">
-                            <span class="material-symbols-outlined" id="clearButton">
+                            <span class="material-symbols-outlined phone-top" id="clearButton">
                                 mop
                             </span>
-                            <span class="material-symbols-outlined" id="save">
+                            <span class="material-symbols-outlined phone-top" id="saveButton">
                                 save
                             </span>
                         </div>
@@ -95,21 +93,29 @@
                     <button id="textBtn"
                             type="button"
                             aria-label="Show original text">
-                        📄
+                        <span class="material-symbols-outlined">
+                            text_snippet
+                        </span>
                     </button>
 
                     <button id="translateBtn"
                             type="button"
                             aria-label="Show translation">
-                        🌐
+                        <span class="material-symbols-outlined">
+                            translate
+                        </span>
                     </button>
 
                     <button id="tableBtn"
                             type="button"
                             aria-label="Show word pairs">
-                        📅
+                        <span class="material-symbols-outlined">
+                            table
+                        </span>
                     </button>
-
+                        <span class="material-symbols-outlined" id="hourglass">
+                            hourglass_pause
+                        </span>
                 </div>
 
                 <!-- Process -->

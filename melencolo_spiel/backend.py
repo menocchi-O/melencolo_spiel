@@ -3,6 +3,7 @@
 print(">>> BACKEND.PY STARTING <<<", flush=True)
 
 import token
+from unittest import result
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from typing import List
@@ -248,10 +249,14 @@ def get_best_english_alignments(
         de_lemma = de_token.lemma_ if de_token is not None else ""
         token_dep = de_token.dep_ if de_token is not None else ""
         token_head = de_token.head.text if de_token is not None else ""
+        de_morph = de_token.morph
+        de_tag = de_token.tag_
         
         # find corresponding English token
         en_token = en_token_by_text.get(tgt_words[best_j])
         en_pos = en_token.pos_ if en_token is not None else ""
+        en_morph = en_token.morph
+        en_tag = en_token.tag_
 
         # no punctuation
         if(de_pos=="PUNCT" or en_pos=="PUNCT"):
@@ -269,8 +274,17 @@ def get_best_english_alignments(
             en = tgt_words[best_j]
 
         # no double entrance
-        if any(result["de"]==de_word and result["de_pos"]!=result["en_pos"] for result in results):
-            continue
+        if any(result["de"]==de_word for result in results):
+           continue
+        
+        if de_pos != en_pos:
+           print("de_pos: "+de_pos)
+           print("en_pos: "+en_pos)
+           print("de_morph: "+str(de_morph))
+           print("en_morph: "+str(en_morph))
+           print("de_tag: "+de_tag)
+           print("en_tag: "+en_tag)
+           # continue
 
         results.append({
             "de": de_word,

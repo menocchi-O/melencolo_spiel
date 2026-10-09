@@ -59,14 +59,11 @@ const config = {
     }
 };
 
-
 new Phaser.Game(config);
-
 
 /* ================================================================
    PRELOAD
    ================================================================ */
-
 function preload() {
 
     /* ------------------------------------------------------------
@@ -219,7 +216,6 @@ function preload() {
     );
 }
 
-
 /* ================================================================
    CREATE
    ================================================================ */
@@ -321,7 +317,6 @@ async function create() {
     window.gameScene = this;
 }
 
-
 /* ================================================================
    START GAME
    ================================================================ */
@@ -332,7 +327,6 @@ async function startGame() {
 
     console.log("GAME IS STARTING !!");
 
-
     if (!scene) {
 
         console.error(
@@ -341,7 +335,6 @@ async function startGame() {
 
         return;
     }
-
 
     if (scene.gameTimer) {
 
@@ -352,9 +345,9 @@ async function startGame() {
         return;
     }
 
-
     scene.words = await loadWords();
 
+    scene.dragon.setTexture("sittingMelencolo");
 
     /*
         Fire every 4 seconds.
@@ -395,11 +388,73 @@ async function startGame() {
     });
 }
 
+/* ================================================================
+   STOP GAME
+   ================================================================ */
+function stopGame() {
+    const scene = window.gameScene;
+
+    if (!scene) {
+        console.warn("Phaser scene is not ready.");
+        return;
+    }
+
+    // Stop the firing timer
+    if (scene.gameTimer) {
+        scene.gameTimer.remove(false);
+        scene.gameTimer = null;
+    }
+
+    // Stop pending scene timers, including delayed callbacks
+    scene.time.removeAllEvents();
+
+    // Return the dragon to its initial state
+    scene.dragon.setTexture("sittingMelencolo");
+
+    console.log("Game stopped.");
+}
+
+/* ================================================================
+   RESET GAME
+   ================================================================ */
+function resetGame() {
+    const scene = window.gameScene;
+
+    if (!scene) {
+        console.warn("Phaser scene is not ready.");
+        return;
+    }
+
+    // Stop all game timers first
+    stopGame();
+
+
+    // Remove every jar and its associated UI objects
+    scene.jars.getChildren().slice().forEach((jar) => {
+        jar.optionTexts?.forEach((text) => text.destroy());
+        jar.parachute?.destroy();
+        jar.label?.destroy();
+        jar.platformCollider?.destroy();
+
+        jar.destroy();
+    });
+
+    scene.jars.clear(false, false);
+
+    // Reset score
+    scene.score = 0;
+    scene.scoreText.setText("Score: 0");
+
+    // Reset dragon
+    scene.dragon.setTexture("sittingMelencolo");
+    scene.dragon.setPosition(150, 450);
+
+    console.log("Game reset.");
+}
 
 /* ================================================================
    SPAWN JAR
    ================================================================ */
-
 function spawnJar(scene) {
 
     const word =
@@ -487,11 +542,9 @@ function spawnJar(scene) {
     );
 }
 
-
 /* ================================================================
    SHOW PARACHUTE
    ================================================================ */
-
 function showParachute(scene, jar) {
 
     if (jar.parachuteOpen) {
@@ -560,11 +613,9 @@ function showParachute(scene, jar) {
     );
 }
 
-
 /* ================================================================
    HANDLE ANSWER
    ================================================================ */
-
 function handleChoice(
     scene,
     jar,
@@ -709,11 +760,9 @@ function handleChoice(
     );
 }
 
-
 /* ================================================================
    UPDATE
    ================================================================ */
-
 function update() {
 
     this.jars.children.iterate(
@@ -777,7 +826,6 @@ function update() {
         }
     );
 }
-
 
 /* ================================================================
    LOAD WORDS

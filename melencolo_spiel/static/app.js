@@ -7,6 +7,7 @@ const divBtnProcess = document.getElementById("btnContainer_process");
 const divBtnStart = document.getElementById("btnContainer_start");
 
 const btnClear = document.getElementById("clearButton");
+const btnSave = document.getElementById("saveButton");
 
 const textButton = document.getElementById("textBtn");
 const translateBtn = document.getElementById("translateBtn");
@@ -14,6 +15,12 @@ const tableBtn = document.getElementById("tableBtn");
 
 const txt_area = document.getElementById("pseudoCanvas");
 const table = document.getElementById("table");
+
+const hourGlass = document.getElementById("hourglass");
+// Store only the icon markup, without duplicating the ID
+const hourGlassHTML = hourGlass.innerHTML.trim();
+// Hide the original HTML element
+hourGlass.style.display = "none";
 
 let input_txt = "";
 let translation = "";
@@ -24,8 +31,9 @@ let translation = "";
    ================================================================ */
 
 processButton.onclick = async () => {
-
-    processButton.innerHTML = "Loading...";
+    // Reuse the icon in buttons
+    processButton.innerHTML =
+        `<span class="material-symbols-outlined">${hourGlassHTML}</span>`;
     processButton.disabled = true;
 
     input_txt = txt_area.value;
@@ -118,6 +126,11 @@ processButton.onclick = async () => {
         divBtnStart.classList.remove("hide");
         divBtnStart.classList.add("show-grid");
 
+        btnClear.classList.remove("hide");
+        btnClear.classList.add("show-btn");
+
+        btnSave.classList.remove("hide");
+        btnSave.classList.add("show-btn");
 
     } catch (error) {
 
@@ -144,7 +157,9 @@ startButton.onclick = async () => {
 
     const selected = [];
 
-    startButton.innerHTML = "Loading...";
+    // Reuse the icon in buttons
+    startButton.innerHTML =
+        `<span class="material-symbols-outlined">${hourGlassHTML}</span>`;
     startButton.disabled = true;
 
     const tbody = table.querySelector("tbody");
@@ -273,6 +288,13 @@ startButton.onclick = async () => {
         divButtons.classList.add("show-grid");
 
 
+        btnClear.classList.remove("hide");
+        btnClear.classList.add("show-btn");
+
+        btnSave.classList.remove("hide");
+        btnSave.classList.add("show-btn");
+
+
     } catch (error) {
 
         console.error(
@@ -292,7 +314,13 @@ startButton.onclick = async () => {
     }
 };
 
+/* ================================================================
+   SAVE GAME
+   ================================================================ */
 
+btnSave.onclick = async () => {
+
+};
 
 /* ================================================================
    CLEAR BUTTON
@@ -316,7 +344,14 @@ btnClear.onclick = () => {
     divBtnProcess.classList.remove("hide");
     divBtnProcess.classList.add("show-grid");
 
+
+    btnClear.classList.remove("hide");
+    btnClear.classList.add("show-btn");
+
     txt_area.focus();
+
+    resetGame();
+
 };
 
 
@@ -335,6 +370,12 @@ textButton.onclick = () => {
 
     divButtons.classList.remove("hide");
     divButtons.classList.add("show-grid");
+
+    btnClear.classList.remove("hide");
+    btnClear.classList.add("show-btn");
+
+    btnSave.classList.remove("hide");
+    btnSave.classList.add("show-btn");
 };
 
 
@@ -353,6 +394,12 @@ translateBtn.onclick = () => {
 
     divButtons.classList.remove("hide");
     divButtons.classList.add("show-grid");
+
+    btnClear.classList.remove("hide");
+    btnClear.classList.add("show-btn");
+
+    btnSave.classList.remove("hide");
+    btnSave.classList.add("show-btn");
 };
 
 
@@ -369,6 +416,12 @@ tableBtn.onclick = () => {
 
     divButtons.classList.remove("hide");
     divButtons.classList.add("show-grid");
+
+    btnClear.classList.remove("hide");
+    btnClear.classList.add("show-btn");
+
+    btnSave.classList.remove("hide");
+    btnSave.classList.add("show-btn");
 };
 
 
@@ -385,6 +438,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     divBtnProcess.classList.remove("hide");
     divBtnProcess.classList.add("show-grid");
+
+    btnClear.classList.remove("hide");
+    btnClear.classList.add("show-btn");
+
 });
 
 
@@ -412,4 +469,13 @@ function hideItems() {
 
     divButtons.classList.remove("show-grid");
     divButtons.classList.add("hide");
+
+    //startButton.classList.remove("show-btn");
+    //startButton.classList.add("hide");
+
+    btnClear.classList.remove("show-btn");
+    btnClear.classList.add("hide");
+
+    btnSave.classList.remove("show-btn");
+    btnSave.classList.add("hide");
 }
