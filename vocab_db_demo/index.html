@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vocabulary DB transmission test</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #202124; background: #f4f6f8; }
+    body { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    main { background: white; border: 1px solid #d9dee5; border-radius: 14px; padding: 1.25rem; }
+    h1 { margin-top: 0; }
+    form { display: grid; gap: .85rem; grid-template-columns: 1fr 1fr; }
+    label { display: grid; gap: .35rem; font-weight: 600; }
+    label.full { grid-column: 1 / -1; }
+    input, textarea { width: 100%; box-sizing: border-box; border: 1px solid #aeb7c2; border-radius: 7px; padding: .65rem; font: inherit; }
+    textarea { min-height: 90px; resize: vertical; }
+    button { border: 0; border-radius: 8px; padding: .75rem 1rem; cursor: pointer; font: inherit; font-weight: 700; }
+    .primary { background: #2458c6; color: white; }
+    .secondary { background: #e8edf5; color: #17243b; }
+    .actions { display: flex; flex-wrap: wrap; gap: .6rem; grid-column: 1 / -1; }
+    #status { margin: 1rem 0; padding: .8rem; border-radius: 8px; background: #eef2f7; white-space: pre-wrap; }
+    #saved { display: grid; gap: .6rem; }
+    .record { border: 1px solid #d9dee5; border-radius: 9px; padding: .8rem; }
+    .record h3 { margin: 0 0 .4rem; }
+    .muted { color: #596579; font-size: .92rem; }
+    pre { overflow: auto; background: #f5f7fa; padding: .8rem; border-radius: 8px; }
+    @media (max-width: 620px) { form { grid-template-columns: 1fr; } label.full, .actions { grid-column: auto; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Vocabulary database transmission test</h1>
+  <p class="muted">HTML → FastAPI → PostgreSQL → FastAPI → HTML. This demo saves one hierarchy node and its original text.</p>
+
+  <form id="pair-form">
+    <label class="full">Title
+      <input name="title" required placeholder="e.g. Die Fröhliche Wissenschaft">
+    </label>
+    <label>German original
+      <textarea name="de" placeholder="German text (optional for container nodes)"></textarea>
+    </label>
+    <label>English translation
+      <textarea name="en" placeholder="English translation (optional for container nodes)"></textarea>
+    </label>
+    <label class="full">Note
+      <textarea name="note" placeholder="Optional note"></textarea>
+    </label>
+    <label>Parent node ID (optional)
+      <input name="parent_id" type="number" min="1" placeholder="Leave empty for a root">
+    </label>
+    <label>Game pairs JSON (optional)
+      <textarea name="game_pairs" placeholder='[{"de":"German text","en":"English text","order":1}]'></textarea>
+    </label>
+    <div class="actions">
+      <button class="primary" type="submit">Send to database</button>
+      <button class="secondary" type="button" id="refresh">Load saved records</button>
+      <button class="secondary" type="reset">Clear form</button>
+    </div>
+  </form>
+
+  <div id="status" role="status">Ready. Start the FastAPI server, then send a test record.</div>
+  <h2>Records returned by the database</h2>
+  <div id="saved"></div>
+  <h2>Last API response</h2>
+  <pre id="response">No request yet.</pre>
+</main>
+
+<script>
+  // If HTML is served by FastAPI at http://127.0.0.1:8000, leave this empty.
+  // If opening this file separately, set it to "http://127.0.0.1:8000".
+  const API_BASE = "";
+  const form = document.querySelector("#pair-form");
+  const statusEl = document.querySelector("#status");
+  const responseEl = document.querySelector("#response");
+  const savedEl = document.querySelector("#saved");
+
+  function showStatus(message, isError = false) {
+    statusEl.textContent = message;
+    statusEl.style.background = isError ? "#ffeded" : "#edf7ef";
+  }
+
+  async function requestJson(path, options = {}) {
+    const response = await fetch(`${API_BASE}${path}`, {
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      ...options
+    });
+    const data = await response.json().catch(() => ({}));
+    responseEl.textContent = JSON.stringify({ http_status: response.status, body: data }, null, 2);
+    if (!response.ok) {
+      const detail = data.detail || `Request failed (${response.status})`;
+      throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    }
+    return data;
+  }
+
+  function renderRecords(records) {
+    savedEl.replaceChildren();
+    if (!records.length) {
+      savedEl.textContent = "No records found yet.";
+      return;
+    }
+    for (const item of records) {
+      const card = document.createElement("article");
+      card.className = "record";
+      const title = document.createElement("h3");
+      title.textContent = `#${item.id} · ${item.title}`;
+      const content = document.createElement("p");
+      content.textContent = `DE: ${item.de ?? "—"}\nEN: ${item.en ?? "—"}`;
+      content.style.whiteSpace = "pre-wrap";
+      const meta = document.createElement("p");
+      meta.className = "muted";
+      meta.textContent = `Parent: ${item.parent_id ?? "root"} · Created: ${item.created_at}`;
+      card.append(title, content, meta);
+      if (item.note) {
+        const note = document.createElement("p");
+        note.textContent = `Note: ${item.note}`;
+        card.append(note);
+      }
+      if (item.game_pairs) {
+        const json = document.createElement("pre");
+        json.textContent = JSON.stringify(item.game_pairs, null, 2);
+        card.append(json);
+      }
+      savedEl.append(card);
+    }
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    let gamePairs = null;
+    const rawGamePairs = String(data.get("game_pairs") || "").trim();
+    try {
+      if (rawGamePairs) gamePairs = JSON.parse(rawGamePairs);
+    } catch {
+      showStatus("Game pairs must be valid JSON.", true);
+      return;
+    }
+    const de = String(data.get("de") || "").trim();
+    const en = String(data.get("en") || "").trim();
+    if (Boolean(de) !== Boolean(en)) {
+      showStatus("Enter both German and English text, or leave both empty for a container node.", true);
+      return;
+    }
+    const payload = {
+      title: String(data.get("title") || "").trim(),
+      de: de || null,
+      en: en || null,
+      note: String(data.get("note") || "").trim() || null,
+      parent_id: String(data.get("parent_id") || "").trim()
+        ? Number(data.get("parent_id")) : null,
+      game_pairs: gamePairs
+    };
+    try {
+      showStatus("Sending request to FastAPI…");
+      const created = await requestJson("/api/word-pairs", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      showStatus(`Saved successfully. PostgreSQL returned record #${created.id}.`);
+      await loadRecords();
+    } catch (error) {
+      showStatus(`Could not save: ${error.message}`, true);
+    }
+  });
+
+  async function loadRecords() {
+    try {
+      showStatus("Loading records from PostgreSQL…");
+      const records = await requestJson("/api/word-pairs", { method: "GET" });
+      renderRecords(records);
+      showStatus(`Loaded ${records.length} record(s) from the database.`);
+    } catch (error) {
+      showStatus(`Could not load records: ${error.message}`, true);
+    }
+  }
+  document.querySelector("#refresh").addEventListener("click", loadRecords);
+</script>
+</body>
+</html>
