@@ -1,10 +1,10 @@
 import json
 import os
+from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -16,12 +16,10 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres.biavraasjflregppfyrj:***REMOVED***@aws-0-eu-west-1.pooler.supabase.com:5432/postgres",
-)
+load_dotenv()
+DATABASE_URL = os.environ["DATABASE_URL"]
 # Development-only shortcut. In a real app, derive this from the authenticated user.
-TEST_USER_ID = int(os.getenv("TEST_USER_ID", "1"))
+TEST_USER_ID = int(os.environ["TEST_USER_ID"])
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
