@@ -68,7 +68,7 @@
         return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
-    /* interfacci a FastAPI */
+    /* interfaccia FastAPI */
     async function api(path, options = {}) {
         const res = await fetch(API_BASE + path, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
         const data = await res.json().catch(() => ({}));
@@ -98,6 +98,7 @@
         return item.de != null && item.en != null ? '▤' : childrenOf(item.id).length ? '▰' : '▱';
     }
 
+    /* 'stampa' a video gli elementi dell'albero */
     function renderTree() {
         treeEl.replaceChildren();
         const roots = childrenOf(null);
@@ -111,66 +112,7 @@
         } for (const node of roots) treeEl.append(buildTreeNode(node, 0));
     }
 
-    function buildTreeNode(node, depth) {
-        const wrap = document.createElement('div');
-        const row = document.createElement('div');
-        row.className = 'tree-row' + (node.id === selectedId ? ' selected' : '');
-        const kids = childrenOf(node.id); const isOpen = expanded.has(node.id);
-        const twist = document.createElement('button');
-        twist.className = 'twisty';
-        twist.textContent = kids.length ? (isOpen ? '⌄' : '›') : ' ';
-        twist.setAttribute('aria-label', isOpen ? 'Collapse section' : 'Expand section');
-        twist.onclick = () => {
-            if (isOpen)
-                expanded.delete(node.id);
-            else
-                expanded.add(node.id);
-            renderTree();
-        };
-        const name = document.createElement('button');
-        name.className = 'node-name';
-        name.innerHTML = `<span class="node-icon">${iconFor(node)}</span>${esc(node.title)}`;
-        name.title = node.title;
-        name.onclick = () => {
-            selectedId = node.id;
-            if (kids.length)
-                expanded.add(node.id);
-            renderTree();
-            renderContent();
-            if (innerWidth <= 760)
-                sidebar.classList.remove('open');
-        };
-        const plus = document.createElement('button');
-        plus.className = 'add-child';
-        plus.textContent = '+';
-        plus.title = `Add subsection under “${node.title}”`;
-        plus.setAttribute('aria-label', plus.title);
-        plus.onclick = () => {
-            selectedId = node.id;
-            expanded.add(node.id);
-            renderTree();
-            openCreate(node.id);
-        };
-        row.append(twist, name, plus);
-        wrap.append(row);
-        if (kids.length && isOpen) {
-            const sub = document.createElement('div');
-            sub.className = 'tree-children';
-            for (const child of kids)
-                sub.append(buildTreeNode(child, depth + 1));
-            wrap.append(sub);
-        } return wrap;
-    }
-
-    function pathFor(item) {
-        const path = [];
-        let current = item;
-        while (current) {
-            path.unshift(current);
-            current = records.find(r => r.id === current.parent_id) || null;
-        } return path;
-    }
-
+    /* probabilmente potremo farne a meno nel ns gioco perchè caricherà direttamente il gioco */
     function renderContent() {
         hideNotice();
         if (selectedId == null) {
@@ -189,72 +131,72 @@
         crumbsEl.textContent = 'Home  ›  ' + path.map(x => x.title).join('  ›  ');
         const kids = childrenOf(item.id);
         contentEl.innerHTML = `
-            <div class="heading-row">
-                <h1>${esc(item.title)}</h1>
-                <button class="icon-btn" id="edit-item" title="Edit not yet available">
-                    ✎
+        <div class="heading-row">
+            <h1>${esc(item.title)}</h1>
+            <button class="icon-btn" id="edit-item" title="Edit not yet available">
+                ✎
+            </button>
+        </div>${item.de != null ? `
+            <section class="panel">
+                <h2>
+                    German (original)
+                </h2>
+                <div class="translation">${esc(item.de)}</div>
+            </section>
+            <section class="panel">
+                <h2>
+                    English (translation)
+                </h2>
+                <div class="translation">${esc(item.en)}</div>
+            </section>` : ''}${item.note ? `
+            <section class="panel note">
+                <h2>
+                    Note
+                </h2>
+                <div class="translation">${esc(item.note)}</div>
+            </section>` : ''}${Array.isArray(item.game_pairs) && item.game_pairs.length ? `
+            <section class="panel">
+                <h2>
+                    Saved game pairs
+                </h2>
+                <div class="child-list">
+                    ${item.game_pairs.map((p, i) => `
+                    <div class="child-card">
+                        <span>${i + 1}.</span>
+                        <div class="child-title">
+                            ${esc(p.de || '—')}
+                            <div class="muted">
+                                ${esc(p.en || '—')}
+                            </div>
+                        </div>
+                    </div>`).join('')}
+                </div>
+            </section>` : ''}
+            <section class="panel">
+                <h2>
+                    Subsections and items
+                </h2>${kids.length ? `
+                <div class="child-list">
+                    ${kids.map(k => `
+                    <div class="child-card">
+                        <div class="child-title">
+                            ${esc(k.title)}
+                            <div class="muted">
+                                ${k.de != null ? 'German–English pair' : 'Section'} · ${childrenOf(k.id).length} child item(s)
+                            </div>
+                        </div>
+                        <button data-open="${k.id}">
+                            Open
+                        </button>
+                        <button data-add="${k.id}" aria-label="Add subsection under ${esc(k.title)}">
+                            ＋
+                        </button>
+                    </div>`).join('')}
+                </div>` : '<p class="muted">No subsections yet.</p>'}
+                <button class="primary inline-add" id="add-child-main">
+                    ＋ Add subsection here
                 </button>
-            </div>${item.de != null ? `
-                <section class="panel">
-                    <h2>
-                        German (original)
-                    </h2>
-                    <div class="translation">${esc(item.de)}</div>
-                </section>
-                <section class="panel">
-                    <h2>
-                        English (translation)
-                    </h2>
-                    <div class="translation">${esc(item.en)}</div>
-                </section>` : ''}${item.note ? `
-                <section class="panel note">
-                    <h2>
-                        Note
-                    </h2>
-                    <div class="translation">${esc(item.note)}</div>
-                </section>` : ''}${Array.isArray(item.game_pairs) && item.game_pairs.length ? `
-                <section class="panel">
-                    <h2>
-                        Saved game pairs
-                    </h2>
-                    <div class="child-list">
-                        ${item.game_pairs.map((p, i) => `
-                        <div class="child-card">
-                            <span>${i + 1}.</span>
-                            <div class="child-title">
-                                ${esc(p.de || '—')}
-                                <div class="muted">
-                                    ${esc(p.en || '—')}
-                                </div>
-                            </div>
-                        </div>`).join('')}
-                    </div>
-                </section>` : ''}
-                <section class="panel">
-                    <h2>
-                        Subsections and items
-                    </h2>${kids.length ? `
-                    <div class="child-list">
-                        ${kids.map(k => `
-                        <div class="child-card">
-                            <div class="child-title">
-                                ${esc(k.title)}
-                                <div class="muted">
-                                    ${k.de != null ? 'German–English pair' : 'Section'} · ${childrenOf(k.id).length} child item(s)
-                                </div>
-                            </div>
-                            <button data-open="${k.id}">
-                                Open
-                            </button>
-                            <button data-add="${k.id}" aria-label="Add subsection under ${esc(k.title)}">
-                                ＋
-                            </button>
-                        </div>`).join('')}
-                    </div>` : '<p class="muted">No subsections yet.</p>'}
-                    <button class="primary inline-add" id="add-child-main">
-                        ＋ Add subsection here
-                    </button>
-                </section>`;
+            </section>`;
         document.querySelector('#add-child-main').onclick = () =>
             openCreate(item.id);
         contentEl.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
@@ -267,6 +209,72 @@
         document.querySelector('#edit-item').onclick = () => showNotice('Editing existing items is not implemented in this first UI pass. Creating and navigating nested items is connected to the database.');
     }
 
+    /* costruisce l'elemento che poi sarà 'stampato' da renderTree */
+    function buildTreeNode(node, depth) {
+        const wrap = document.createElement('div');
+        const row = document.createElement('div');
+        row.className = 'tree-row' + (node.id === selectedId ? ' selected' : '');
+        const kids = childrenOf(node.id); const isOpen = expanded.has(node.id);
+        /* pulsante per la gestione dell'albero */
+        const twist = document.createElement('button');
+        twist.className = 'twisty';
+        twist.textContent = kids.length ? (isOpen ? '⌄' : '›') : ' ';
+        twist.setAttribute('aria-label', isOpen ? 'Collapse section' : 'Expand section');
+        twist.onclick = () => {
+            if (isOpen)
+                expanded.delete(node.id);
+            else
+                expanded.add(node.id);
+            renderTree();
+        };
+        /* pulsante per apertura sotto-sezioni (renderTree) e visualizzazione elemento (renderContent) */
+        const name = document.createElement('button');
+        name.className = 'node-name';
+        name.innerHTML = `<span class="node-icon">${iconFor(node)}</span>${esc(node.title)}`;
+        name.title = node.title;
+        name.onclick = () => {
+            selectedId = node.id;
+            if (kids.length)
+                expanded.add(node.id);
+            renderTree();
+            renderContent();
+            if (innerWidth <= 760)
+                sidebar.classList.remove('open');
+        };
+        /* pulsante per l'aggiunta di una sotto-sezione */
+        const plus = document.createElement('button');
+        plus.className = 'add-child';
+        plus.textContent = '+';
+        plus.title = `Add subsection under “${node.title}”`;
+        plus.setAttribute('aria-label', plus.title);
+        plus.onclick = () => {
+            selectedId = node.id;
+            expanded.add(node.id);
+            renderTree();
+            openCreate(node.id);
+        };
+        /* elementi creati effettivamente associati alla riga <div> */
+        row.append(twist, name, plus);
+        wrap.append(row);
+        /* se l'elemento ha già dei nini va aggiunto un div */
+        if (kids.length && isOpen) {
+            const sub = document.createElement('div');
+            sub.className = 'tree-children';
+            for (const child of kids)
+                sub.append(buildTreeNode(child, depth + 1));
+            wrap.append(sub);
+        } return wrap;
+    }
+
+    function pathFor(item) {
+        const path = [];
+        let current = item;
+        while (current) {
+            path.unshift(current);
+            current = records.find(r => r.id === current.parent_id) || null;
+        } return path;
+    }
+    /* crea la pagina web dove compariranno i dati del db --> da prevedere il MODO DI SALVATAGGIO */
     function openCreate(parentId) {
         formParentId = parentId;
         formMode = 'create';
